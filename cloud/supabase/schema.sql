@@ -44,6 +44,12 @@ create unique index if not exists punches_dedup on punches (pin, ts);
 create index if not exists punches_ts_idx  on punches (ts);
 create index if not exists punches_pin_idx on punches (pin);
 
+-- Punch count per device — a real GROUP BY aggregate computed in Postgres, so
+-- the Devices page doesn't have to page through every punch row (64k+) client
+-- side just to show a count next to each device.
+create or replace view device_punch_counts as
+  select device_id, count(*) as n from punches where device_id is not null group by device_id;
+
 -- App login accounts (separate from `employees`, which is attendance-only data).
 -- Password is bcrypt-hashed — never store plaintext once this lives in the cloud.
 create table if not exists login_users (
