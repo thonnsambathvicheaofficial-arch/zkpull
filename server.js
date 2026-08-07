@@ -86,13 +86,33 @@ async function pinsInGroup(group) {
   return new Set(Object.keys(emps).filter(pin => (emps[pin].group || null) === group))
 }
 
+// dailyRows() now walks every employee for every day in range (not just days
+// that happen to have a punch), so a pin/group filter has to narrow the
+// EMPLOYEE SET itself, not just the punches — otherwise everyone shows up
+// regardless of the filter.
+function filterEmployees(all, q, allowed) {
+  let out = all
+  if (q.pin) out = Object.fromEntries(Object.entries(out).filter(([pin]) => pin === String(q.pin)))
+  if (allowed) out = Object.fromEntries(Object.entries(out).filter(([pin]) => allowed.has(pin)))
+  return out
+}
+
+const pad = n => String(n).padStart(2, '0')
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` }
+const monthStartStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01` }
+const currentMonthStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}` }
+
 async function reportData(q) {
-  let punches = await store.punches.query({ deviceId: q.deviceId, from: q.from, to: q.to, pin: q.pin })
+  const from = q.from || monthStartStr()
+  const to = q.to || todayStr()
+  let punches = await store.punches.query({ deviceId: q.deviceId, from, to, pin: q.pin })
+  const allEmployees = await store.employees.get()
   const allowed = await pinsInGroup(q.group)
   if (allowed) punches = punches.filter(p => allowed.has(p.pin))
-  const employees = await store.employees.get()
+  const employees = filterEmployees(allEmployees, q, allowed)
   const settings = await store.settings.get()
-  const daily = dailyRows(punches, employees, settings)
+  const overrides = await store.overrides.query({ from, to, pin: q.pin })
+  const daily = dailyRows(punches, employees, settings, overrides, from, to)
   return { punches, daily, summary: summaryRows(daily), names: await store.employees.names() }
 }
 
@@ -132,16 +152,18 @@ app.get('/api/report/summary', h(async (req, res) => res.json((await reportData(
 
 // Monthly timesheet grid (uses ?month=YYYY-MM instead of from/to).
 async function timesheetData(q) {
-  const month = q.month || new Date().toISOString().slice(0, 7)
+  const month = q.month || currentMonthStr()
   const [y, m] = month.split('-').map(Number)
   const from = `${month}-01`
   const to = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
   let punches = await store.punches.query({ deviceId: q.deviceId, from, to, pin: q.pin })
+  const allEmployees = await store.employees.get()
   const allowed = await pinsInGroup(q.group)
   if (allowed) punches = punches.filter(p => allowed.has(p.pin))
-  const employees = await store.employees.get()
+  const employees = filterEmployees(allEmployees, q, allowed)
   const settings = await store.settings.get()
-  return timesheet(punches, employees, settings, month)
+  const overrides = await store.overrides.query({ from, to, pin: q.pin })
+  return timesheet(punches, employees, settings, overrides, month)
 }
 app.get('/api/report/timesheet', h(async (req, res) => res.json(await timesheetData(req.query))))
 
@@ -155,6 +177,33 @@ app.get('/api/punches', h(async (req, res) => {
   res.json(rows)
 }))
 
+// ── API: day overrides ──────────────────────────────────────
+// See cloud/supabase/schema.sql day_overrides — the final source of truth for
+// a (pin, date) when set. `note` is required, both by the DB and here.
+const OVERRIDE_STATUSES = new Set(['present', 'day_off', 'leave', 'excused'])
+app.get('/api/overrides', h(async (req, res) =>
+  res.json(await store.overrides.query({ from: req.query.from, to: req.query.to, pin: req.query.pin }))))
+app.post('/api/overrides', h(async (req, res) => {
+  const b = req.body || {}
+  const pin = b.pin != null ? String(b.pin).trim() : ''
+  const date = (b.date || '').trim()
+  const note = (b.note || '').trim()
+  if (!pin) return res.status(400).json({ error: 'PIN is required.' })
+  if (!date) return res.status(400).json({ error: 'Date is required.' })
+  if (!OVERRIDE_STATUSES.has(b.status)) return res.status(400).json({ error: 'Invalid status.' })
+  if (!note) return res.status(400).json({ error: 'A note is required — describe what happened.' })
+  const timeIn = b.timeIn ? String(b.timeIn).trim() : null
+  const timeOut = b.timeOut ? String(b.timeOut).trim() : null
+  await store.overrides.set(pin, date, b.status, note, req.user.username, timeIn, timeOut)
+  res.json({ ok: true })
+}))
+app.delete('/api/overrides', h(async (req, res) => {
+  const pin = req.query.pin, date = req.query.date
+  if (!pin || !date) return res.status(400).json({ error: 'PIN and date are required.' })
+  await store.overrides.remove(String(pin), date)
+  res.json({ ok: true })
+}))
+
 // ── API: exports (xlsx) ─────────────────────────────────────
 function sendXlsx(res, filename, buf) {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -164,6 +213,8 @@ function sendXlsx(res, filename, buf) {
 
 const GROUP_LABEL = { office: 'Office Staff', worker: 'Worker' }
 const glabel = g => GROUP_LABEL[g] || ''
+const STATUS_LABEL = { present: 'Present', late: 'Late', absent: 'Absent', day_off: 'Day Off', leave: 'Leave', excused: 'Excused' }
+const slabel = s => STATUS_LABEL[s] || s || ''
 
 app.get('/api/export/timesheet', h(async (req, res) => {
   const ts = await timesheetData(req.query)
@@ -181,16 +232,17 @@ app.get('/api/export/:kind', h(async (req, res) => {
   const suffix = req.query.group ? `_${req.query.group}` : ''
   let sheet
   if (req.params.kind === 'summary') {
-    sheet = { name: 'Summary', header: ['PIN', 'Name', 'Group', 'Days', 'Total Hours', 'Late Days', 'Early Leave Days'],
-      rows: summary.map(r => [r.pin, r.name, glabel(r.group), r.days, r.hours, r.late, r.early]), cols: [12, 24, 12, 8, 12, 10, 14] }
+    sheet = { name: 'Summary', header: ['PIN', 'Name', 'Group', 'Days', 'Total Hours', 'Late Days', 'Early Leave Days', 'Absent', 'Day Off', 'Leave', 'Excused'],
+      rows: summary.map(r => [r.pin, r.name, glabel(r.group), r.days, r.hours, r.late, r.early, r.absent, r.dayOff, r.leave, r.excused]),
+      cols: [12, 24, 12, 8, 12, 10, 14, 9, 10, 8, 10] }
   } else if (req.params.kind === 'punches') {
     sheet = { name: 'Punches', header: ['Date', 'Time', 'PIN', 'Name', 'Group', 'Source', 'Verify'],
       rows: punches.sort((a, b) => a.time < b.time ? -1 : 1).map(p => [p.time.slice(0, 10), p.time.slice(11, 19), p.pin, (emps[p.pin] && emps[p.pin].name) || '', glabel(emps[p.pin] && emps[p.pin].group), p.source, p.verify]),
       cols: [12, 10, 12, 24, 12, 8, 8] }
   } else {
-    sheet = { name: 'Daily', header: ['Date', 'PIN', 'Name', 'Group', 'In', 'Out', 'Hours', 'Punches', 'Late', 'Early Leave'],
-      rows: daily.map(r => [r.date, r.pin, r.name, glabel(r.group), r.in, r.out, r.hours, r.punches, r.late ? 'LATE' : '', r.earlyLeave ? 'EARLY' : '']),
-      cols: [12, 12, 24, 12, 8, 8, 8, 9, 7, 11] }
+    sheet = { name: 'Daily', header: ['Date', 'PIN', 'Name', 'Group', 'Status', 'In', 'Out', 'Hours', 'Punches', 'Late', 'Early Leave', 'Note'],
+      rows: daily.map(r => [r.date, r.pin, r.name, glabel(r.group), slabel(r.status), r.in, r.out, r.hours, r.punches, r.status === 'late' ? 'LATE' : '', r.earlyLeave ? 'EARLY' : '', r.note || '']),
+      cols: [12, 12, 24, 12, 10, 8, 8, 8, 9, 7, 11, 30] }
   }
   sendXlsx(res, `Attendance_${req.params.kind}${suffix}_${stamp}.xlsx`, toXlsx([sheet]))
 }))
@@ -205,8 +257,10 @@ app.post('/api/employees', h(async (req, res) => {
   if ('group' in b) data.group = b.group
   if ('timeIn' in b) data.timeIn = b.timeIn
   if ('timeOut' in b) data.timeOut = b.timeOut
-  await store.employees.set(String(b.pin), data)
-  res.json({ ok: true })
+  if ('offDays' in b && Array.isArray(b.offDays)) data.offDays = b.offDays.map(Number).filter(n => n >= 0 && n <= 6)
+  if ('newPin' in b && b.newPin != null && String(b.newPin).trim() !== '') data.newPin = b.newPin
+  try { await store.employees.set(String(b.pin), data); res.json({ ok: true }) }
+  catch (e) { res.status(400).json({ error: e.message }) }
 }))
 
 // ── API: settings ───────────────────────────────────────────

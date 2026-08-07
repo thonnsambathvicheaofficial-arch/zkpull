@@ -19,8 +19,10 @@ create table if not exists employees (
   name      text,
   "group"   text,     -- e.g. 'office' | 'worker' — free text, filters reports
   time_in   text,      -- "HH:MM" — falls back to settings.workStart when null
-  time_out  text       -- "HH:MM" — falls back to settings.workEnd when null
+  time_out  text,      -- "HH:MM" — falls back to settings.workEnd when null
+  off_days  integer[] not null default '{0,6}'   -- weekly recurring days off (0=Sun..6=Sat)
 );
+alter table employees add column if not exists off_days integer[] not null default '{0,6}';
 
 -- Raw punches. ts = the device's LOCAL wall-clock (no timezone conversion).
 create table if not exists punches (
@@ -59,6 +61,27 @@ create table if not exists login_users (
   created_at    timestamptz not null default now()
 );
 
+-- Manual day-level overrides — the final source of truth for a (pin, date)
+-- when set, beating whatever the raw punches or the weekly off-days pattern
+-- would otherwise say. Covers: correcting a bad/missing scan ('present'),
+-- an extra day off outside the weekly pattern ('day_off'), approved leave
+-- ('leave'), or staff pre-notifying they can't scan / can't make it on time
+-- ('excused'). `note` is REQUIRED — it's the actual record of what happened,
+-- not decoration, and prints in the Daily/Summary report next to the status.
+create table if not exists day_overrides (
+  pin      text not null,
+  date     date not null,
+  status   text not null check (status in ('present', 'day_off', 'leave', 'excused')),
+  note     text not null check (length(trim(note)) > 0),
+  time_in  text,     -- "HH:MM" — manually-entered correction/record, e.g. for a bad/missing scan
+  time_out text,     -- "HH:MM" — ignored for 'day_off'/'leave' (they shouldn't have worked hours)
+  set_by   text,
+  set_at   timestamptz not null default now(),
+  primary key (pin, date)
+);
+alter table day_overrides add column if not exists time_in text;
+alter table day_overrides add column if not exists time_out text;
+
 -- Single-row report settings (work start/end, grace, timezone).
 create table if not exists settings (
   id            integer primary key default 1,
@@ -72,8 +95,9 @@ insert into settings (id) values (1) on conflict (id) do nothing;
 
 -- RLS: lock everything down. The agent and the Vercel API use the SERVICE key,
 -- which bypasses RLS. No anon/browser access — never ship the service key to a client.
-alter table devices     enable row level security;
-alter table employees   enable row level security;
-alter table punches     enable row level security;
-alter table login_users enable row level security;
-alter table settings    enable row level security;
+alter table devices       enable row level security;
+alter table employees     enable row level security;
+alter table punches       enable row level security;
+alter table login_users   enable row level security;
+alter table settings      enable row level security;
+alter table day_overrides enable row level security;

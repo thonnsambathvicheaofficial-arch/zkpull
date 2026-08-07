@@ -1,60 +1,64 @@
-# ZK Report Puller — Cloud (Vercel + Supabase)
+# ZK Report Puller — Cloud (Vercel + Supabase + on-site agent)
 
-Remote attendance access **without exposing the device to the internet**.
+Remote attendance access **without exposing any device to the internet**.
 
 ```
-   Office LAN                         Cloud
- ┌───────────┐   local pull   ┌──────────────┐   read    ┌──────────────┐
- │   K40     │◄───────────────│  agent (PC)  │──push────►│   Supabase   │◄──────│  Vercel web  │
- │ .0.201    │                │  on-site     │           │  (Postgres)  │        │  reports/UI  │
- └───────────┘                └──────────────┘           └──────────────┘        └──────┬───────┘
-                                                                                          │ view from anywhere
+   Office LAN                          Cloud
+ ┌───────────┐   local pull   ┌──────────────┐   push    ┌──────────────┐   read   ┌────────────────────┐
+ │ K40, B3-C │◄───────────────│ cloud/agent  │──────────►│   Supabase   │◄─────────│ root app on Vercel │
+ │ 192.168.x │                │  (on-site)   │           │  (Postgres)  │          │  reports / staff / │
+ └───────────┘                └──────────────┘           └──────────────┘          │  devices / users   │
+                                                                                     └──────────┬─────────┘
+                                                                                                 │ view from anywhere
 ```
 
-The **agent** runs on an always-on PC inside the office. It pulls each device over
-the LAN (fast, reliable) and pushes punches to **Supabase**. **Vercel** hosts the
-report UI, reading from Supabase — so you view attendance from any network. The K40
-is never port-forwarded or exposed. Everything is **read-only** toward devices.
+**`cloud/agent`** is the *only* thing that ever talks to a device. It runs on an
+always-on PC inside the office, pulls each device over the LAN, and pushes
+punches to Supabase. Everything else — the reports web app at the repo root
+(`server.js` + `lib/` + `public/`) — is deployed on Vercel and only ever reads
+and writes Supabase; it has no way to reach a device's private LAN address at
+all (that's the whole reason the agent exists). Everything is **read-only**
+toward devices.
 
-## Prerequisites
-- A **Supabase** account (free tier is fine) — hosted Postgres.
-- A **Vercel** account (free/Hobby is fine) — hosts the web app.
-- One **always-on PC** at the office to run the agent (any Windows/Mac/Linux box on the LAN).
+## 1 · Supabase (already set up)
+Schema lives in `cloud/supabase/schema.sql`. Ignore `seed.sql` — it's stale
+placeholder data from before the real staff list was migrated in; don't run it.
 
-## 1 · Supabase (database)
-1. Create a new project. Note the **Project URL** and the **service_role key**
-   (Project Settings → API). The service key is secret.
-2. Open the **SQL Editor** and run, in order:
-   - `supabase/schema.sql`  — creates the tables
-   - `supabase/seed.sql`    — inserts the **K40** device and your **119 employees**
+## 2 · Vercel (web reports — already deployed)
+The **repo root** (not `cloud/web`, which no longer exists) is what's deployed
+to Vercel. Env vars set on the Vercel project: `SUPABASE_URL`,
+`SUPABASE_SERVICE_KEY`, `SESSION_SECRET`. Auto-deploys on every push to `main`.
 
-## 2 · Vercel (web reports)
-1. Deploy the `cloud/web/` folder to Vercel (import the repo, or `vercel` CLI from that folder).
-2. Set Environment Variables (Project → Settings → Environment Variables):
-   - `SUPABASE_URL` = your project URL
-   - `SUPABASE_SERVICE_KEY` = the service_role key
-   - `WORK_START` = `08:00`  ·  `GRACE_MIN` = `5`
-3. Open the deployed URL — Reports / Employees / Devices. (No data until the agent runs.)
+## 3 · Agent (on-site puller — needs to be running somewhere)
 
-## 3 · Agent (on-site puller)
-On the office PC:
+On a PC that's on the same network as the devices:
+
 ```bash
 cd cloud/agent
-copy .env.example .env      # then edit .env with your Supabase URL + service key
+copy .env.example .env      REM then edit .env: SUPABASE_URL + SUPABASE_SERVICE_KEY
 npm install
-npm start
+npm start                   REM runs in the foreground — fine for a quick test
 ```
-It pulls every device in Supabase (`type = pull`) every `PULL_INTERVAL_MIN` minutes
-and pushes new punches. Leave it running (or install it as a service / `pm2 start agent.js`).
-The K40 is already seeded, so it starts collecting immediately once it's on the `192.168.0.x` LAN.
 
-## The PIN caveat
-The employee list uses IDs like `SF0003`. ZK devices usually report **numeric** PINs.
-After the first real pull, check the **Raw punches** view: if PINs come back as numbers
-(`3`, `107`…) they won't match `SF####`. If so, tell me the format and I'll add a one-line
-crosswalk (`SF0003 → 3`) — the numeric parts already line up.
+**To make it survive reboots** (Windows), instead of `npm start`, run
+**`install-agent.bat`** (double-click it — it prompts for admin access via UAC,
+needed to register a boot-time task). This registers a Scheduled Task that:
+- starts automatically at boot, even before anyone logs in (`SYSTEM` account)
+- restarts itself if it crashes
+- logs to `cloud/agent/agent.log` (grows over time — no rotation yet, clear it
+  occasionally if it gets large)
+
+Requires `.env` to already exist and be filled in — the installer refuses to
+run without it (never auto-generates one, since it holds a secret key).
+
+To remove it later: `uninstall-agent.bat` (same admin-prompt pattern).
+
+To check on it manually: `Get-ScheduledTask "ZK Attendance Agent" | Get-ScheduledTaskInfo`
 
 ## Security
-- The **service_role key** lives only on the agent PC and in Vercel's server env — never in a browser.
-- RLS is enabled with no public policies, so the anon key can read nothing.
-- The device is only ever **read**; it is never exposed to the internet.
+- The **service_role key** lives only in `cloud/agent/.env` (on the agent PC,
+  gitignored) and in Vercel's server-side env vars — never in a browser.
+- RLS is enabled on every table with no public policies — the anon key (if it
+  ever leaked) can read or write nothing.
+- Devices are only ever **read** from; nothing is ever cleared, wiped, or
+  commanded on them, and none are exposed to the internet.

@@ -134,7 +134,7 @@
           <input id="e-search" placeholder="Search name or PIN…" style="max-width:200px" />
         </div>
       </div>
-      <p class="hint">Map each device PIN to a person, put them in a group, and set their own Time In / Time Out. Late is judged against each person’s Time In (or the default Work start in Settings when left blank) — the same rule applies no matter which device they punch on.</p>
+      <p class="hint">Map each device PIN to a person, put them in a group, and set their own Time In / Time Out. Late is judged against each person’s Time In (or the default Work start in Settings when left blank) — the same rule applies no matter which device they punch on. Off Days is their normal weekly schedule (default Sun+Sat); one-off exceptions (an extra day off, working through leave, an excused no-scan) are set per-day from the Timesheet instead.</p>
       <div class="card">
         <div class="actions" style="align-items:flex-end">
           <label>PIN<input id="e-pin" placeholder="PIN" style="max-width:100px" /></label>
@@ -148,11 +148,12 @@
           </label>
           <label>Time In<input id="e-timeIn" type="time" /></label>
           <label>Time Out<input id="e-timeOut" type="time" /></label>
+          <label>Off Days<div id="e-offDays" class="offdays"></div></label>
           <button id="saveEmp" class="btn primary">Add staff</button>
           <span id="empErr" class="err"></span>
         </div>
       </div>
-      <div class="tablewrap"><table id="empTable"><thead><tr><th>PIN</th><th>Name</th><th>Group</th><th>Time In</th><th>Time Out</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="tablewrap"><table id="empTable"><thead><tr><th>PIN</th><th>Name</th><th>Group</th><th>Time In</th><th>Time Out</th><th>Off Days</th><th></th></tr></thead><tbody></tbody></table></div>
     </section>
 
     <!-- SETTINGS -->
@@ -190,6 +191,9 @@
       <div class="tablewrap"><table id="userTable"><thead><tr><th>Username</th><th>Role</th><th></th></tr></thead><tbody></tbody></table></div>
     </section>
   </main>
+
+  <!-- Day-override editor — populated/toggled by app.js -->
+  <div id="ovModal" class="modal-overlay hidden"></div>
 
   <script src="app.js"></script>
 </body>

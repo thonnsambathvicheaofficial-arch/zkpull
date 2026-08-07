@@ -8,7 +8,10 @@
 //
 // READ-ONLY: it only reads from devices — never clears, wipes, or commands them.
 
-require('dotenv').config()
+// Load .env from this file's own folder, not the caller's working directory —
+// Windows Task Scheduler / Startup shortcuts don't reliably set the working
+// directory, so a plain require('dotenv').config() can silently miss it.
+require('dotenv').config({ path: require('path').join(__dirname, '.env') })
 const { createClient } = require('@supabase/supabase-js')
 const ZKLib = require('node-zklib')
 

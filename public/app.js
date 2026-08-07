@@ -28,6 +28,18 @@ function groupChip(g) {
   return '<span class="mono">—</span>'
 }
 
+// Day status — shared between the Reports/Daily table and the Timesheet grid.
+const STATUS_LABEL = { present: 'Present', late: 'Late', absent: 'Absent', day_off: 'Day Off', leave: 'Leave', excused: 'Excused' }
+const STATUS_CLASS = { present: 'present', late: 'late', absent: 'absent-flag', day_off: 'day-off', leave: 'leave', excused: 'excused' }
+const DOW_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+function offDaysHtml(selected) {
+  const sel = new Set(selected && selected.length ? selected : [0, 6])
+  return DOW_LETTERS.map((l, i) => `<button type="button" class="${sel.has(i) ? 'on' : ''}" data-dow="${i}">${l}</button>`).join('')
+}
+function readOffDays(container) { return [...container.querySelectorAll('button.on')].map(b => Number(b.dataset.dow)) }
+document.addEventListener('click', e => { const b = e.target.closest('.offdays button'); if (b) b.classList.toggle('on') })
+
 // ── status ──────────────────────────────────────────────────
 async function loadStatus() {
   const s = await api('/api/status')
@@ -78,8 +90,8 @@ $('#saveDevice').addEventListener('click', async () => {
 
 // ── reports ─────────────────────────────────────────────────
 const COLS = {
-  daily:   [['date', 'Date'], ['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['in', 'In'], ['out', 'Out'], ['hours', 'Hours'], ['punches', 'Punches'], ['late', 'Late'], ['earlyLeave', 'Early Leave']],
-  summary: [['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['days', 'Days'], ['hours', 'Total Hours'], ['late', 'Late Days'], ['early', 'Early Leave Days']],
+  daily:   [['date', 'Date'], ['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['status', 'Status'], ['in', 'In'], ['out', 'Out'], ['hours', 'Hours'], ['punches', 'Punches'], ['earlyLeave', 'Early Leave'], ['note', 'Note']],
+  summary: [['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['days', 'Days'], ['hours', 'Total Hours'], ['late', 'Late'], ['early', 'Early Leave'], ['absent', 'Absent'], ['dayOff', 'Day Off'], ['leave', 'Leave'], ['excused', 'Excused']],
   punches: [['date', 'Date'], ['time', 'Time'], ['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['source', 'Source'], ['verify', 'Verify']],
 }
 function qs() {
@@ -92,7 +104,7 @@ async function runReport() {
   const url = kind === 'punches' ? '/api/punches?' + qs() : `/api/report/${kind}?` + qs()
   const rows = await api(url)
   const cols = COLS[kind]
-  const NUM_COLS = ['hours', 'days', 'late', 'early', 'punches', 'verify']
+  const NUM_COLS = ['hours', 'days', 'late', 'early', 'punches', 'verify', 'absent', 'dayOff', 'leave', 'excused']
   $('#repTable thead').innerHTML = '<tr>' + cols.map(c => `<th${NUM_COLS.includes(c[0]) ? ' class="num"' : ''}>${c[1]}</th>`).join('') + '</tr>'
   const tb = $('#repTable tbody')
   if (!rows.length) { tb.innerHTML = `<tr><td colspan="${cols.length}"><div class="empty">No records for this filter.</div></td></tr>`; $('#repMeta').textContent = ''; return }
@@ -101,9 +113,10 @@ async function runReport() {
     if (kind === 'punches') { row.date = r.time.slice(0, 10); row.time = r.time.slice(11, 19) }
     return '<tr>' + cols.map(c => {
       let v = row[c[0]]
-      if (c[0] === 'late') return `<td class="num">${v ? '<span class="chip late">LATE</span>' : ''}</td>`
       if (c[0] === 'earlyLeave') return `<td class="num">${v ? '<span class="chip early">EARLY</span>' : ''}</td>`
       if (c[0] === 'group') return `<td>${groupChip(v)}</td>`
+      if (c[0] === 'status') return `<td><span class="chip status-${esc(v)}">${esc(STATUS_LABEL[v] || v || '')}</span></td>`
+      if (c[0] === 'note') return `<td class="note-text">${esc(v || '')}</td>`
       const num = NUM_COLS.includes(c[0])
       return `<td class="${num ? 'num' : ''}">${esc(v ?? '')}</td>`
     }).join('') + '</tr>'
@@ -156,12 +169,10 @@ function renderTimesheet() {
   const totDays = filtered.reduce((a, r) => a + r.daysPresent, 0)
   const totLate = filtered.reduce((a, r) => a + (r.lateDays || 0), 0)
   const totEarly = filtered.reduce((a, r) => a + (r.earlyDays || 0), 0)
+  // Every day now has a cell (server-side, not a client-side "no cell" guess) —
+  // count actual 'absent' status, not the old !cell + past-weekday heuristic.
   let absentCount = 0
-  for (const r of filtered) for (const d of days) {
-    if (d.weekend) continue
-    const dateStr = `${tsData.month}-${String(d.d).padStart(2, '0')}`
-    if (dateStr < todayStr && !r.cells[d.d]) absentCount++
-  }
+  for (const r of filtered) for (const d of days) { if (r.cells[d.d] && r.cells[d.d].status === 'absent') absentCount++ }
   const avgHours = totDays ? Math.round((totHours / totDays) * 10) / 10 : 0
   $('#tsStats').innerHTML = [
     ['Staff shown', filtered.length, ''],
@@ -169,7 +180,7 @@ function renderTimesheet() {
     ['Avg hrs / day', avgHours, ''],
     ['Late instances', totLate, 'warn'],
     ['Early-leave instances', totEarly, 'early'],
-    ['Possible absences*', absentCount, 'bad'],
+    ['Unexcused absences', absentCount, 'bad'],
   ].map(([label, val, cls]) => `<div class="ts-stat ${cls}"><b>${val}</b><span>${label}</span></div>`).join('')
 
   // ── header ──
@@ -185,24 +196,29 @@ function renderTimesheet() {
   // ── body ──
   const tb = $('#tsTable tbody')
   if (!rows.length) { tb.innerHTML = `<tr><td class="name">—</td><td colspan="${days.length + 4}"><div class="empty">No attendance for this month.</div></td></tr>`; $('#tsTable tfoot').innerHTML = ''; return }
+  const PRESENT_ISH = new Set(['present', 'late', 'excused'])
   tb.innerHTML = rows.map(r => '<tr>' +
     `<td class="name"><b>${esc(r.name || r.pin)}</b> ${groupChip(r.group)}${r.name ? ` <span class="mono">${esc(r.pin)}</span>` : ''}</td>` +
     days.map(d => {
+      const dateStr = `${tsData.month}-${String(d.d).padStart(2, '0')}`
       const c = r.cells[d.d]
       const todayCls = d.d === todayDay ? ' today-col' : ''
-      if (!c) {
-        const dateStr = `${tsData.month}-${String(d.d).padStart(2, '0')}`
-        const absent = !d.weekend && dateStr < todayStr
-        return `<td class="${d.weekend ? 'wend' : ''}${absent ? ' absent' : ''}${todayCls}"></td>`
-      }
-      const cls = [d.weekend ? 'wend' : '', c.late ? 'late' : 'present', c.earlyLeave ? 'early' : '', todayCls].filter(Boolean).join(' ')
-      return `<td class="${cls}" title="${esc(c.in)}-${esc(c.out)}${c.late ? ' · late' : ''}${c.earlyLeave ? ' · left early' : ''}">${c.hours || ''}</td>`
+      const attrs = `data-pin="${esc(r.pin)}" data-date="${dateStr}"`
+      if (!c) return `<td class="day-cell${d.weekend ? ' wend' : ''}${todayCls}" ${attrs}></td>`   // defensive; every day should have a cell now
+      const statusCls = STATUS_CLASS[c.status] || ''
+      const cls = ['day-cell', d.weekend ? 'wend' : '', statusCls, c.earlyLeave ? 'early' : '', c.overridden ? 'has-note' : '', todayCls].filter(Boolean).join(' ')
+      const titleBits = [STATUS_LABEL[c.status] || c.status]
+      if (c.in) titleBits.push(`${c.in}-${c.out || '?'}`)
+      if (c.earlyLeave) titleBits.push('left early')
+      if (c.note) titleBits.push('Note: ' + c.note)
+      const text = (c.status === 'present' || c.status === 'late' || (c.status === 'excused' && c.hours)) ? (c.hours || '') : ''
+      return `<td class="${cls}" ${attrs} title="${esc(titleBits.join(' · '))}">${text}</td>`
     }).join('') +
     `<td class="tot tot-hrs">${r.totalHours}</td><td class="tot tot-days">${r.daysPresent}</td><td class="tot tot-late">${r.lateDays || ''}</td><td class="tot tot-early">${r.earlyDays || ''}</td></tr>`
   ).join('')
 
   // ── footer: daily headcount-present + grand totals ──
-  const headcount = d => rows.reduce((a, r) => a + (r.cells[d.d] ? 1 : 0), 0)
+  const headcount = d => rows.reduce((a, r) => a + (r.cells[d.d] && PRESENT_ISH.has(r.cells[d.d].status) ? 1 : 0), 0)
   $('#tsTable tfoot').innerHTML = '<tr>' +
     `<td class="name">Present / day</td>` +
     days.map(d => `<td class="${d.weekend ? 'wend' : ''}">${d.weekend ? '' : (headcount(d) || '')}</td>`).join('') +
@@ -210,12 +226,93 @@ function renderTimesheet() {
 }
 
 $('#tsTable').addEventListener('click', e => {
-  const th = e.target.closest('th.sortable'); if (!th) return
-  const key = th.dataset.sort
-  if (tsSort.key === key) tsSort.dir *= -1
-  else tsSort = { key, dir: key === 'name' ? 1 : -1 }   // numeric columns default to "highest first"
-  renderTimesheet()
+  const th = e.target.closest('th.sortable')
+  if (th) {
+    const key = th.dataset.sort
+    if (tsSort.key === key) tsSort.dir *= -1
+    else tsSort = { key, dir: key === 'name' ? 1 : -1 }   // numeric columns default to "highest first"
+    renderTimesheet()
+    return
+  }
+  const cell = e.target.closest('td.day-cell')
+  if (cell) openOverrideModal(cell.dataset.pin, cell.dataset.date)
 })
+
+// ── day-override editor (click a Timesheet cell) ────────────
+function openOverrideModal(pin, date) {
+  const day = Number(date.slice(8, 10))
+  const row = tsData && tsData.rows.find(r => r.pin === pin)
+  const c = row && row.cells[day]
+  const existing = c && c.overridden ? { status: c.status, note: c.note } : null
+  const name = row ? (row.name || pin) : pin
+  // Prefill from whatever's already showing in the cell — real scanned times
+  // if there are any, or a previously-entered manual correction. Either way
+  // this is what dailyRows() would show for this day right now.
+  const prefIn = c ? (c.in || '') : ''
+  const prefOut = c ? (c.out || '') : ''
+
+  const opt = (val, label) => `<option value="${val}"${(existing ? existing.status : 'excused') === val ? ' selected' : ''}>${label}</option>`
+  $('#ovModal').innerHTML = `
+    <div class="modal">
+      <h3>${esc(name)}</h3>
+      <p class="sub">${esc(date)}${existing ? ' · currently overridden' : ' · no override set'}</p>
+      <div class="field">
+        <label>Status</label>
+        <select id="ov-status">
+          ${opt('present', 'Present (correct a bad/missing scan)')}
+          ${opt('day_off', 'Day Off')}
+          ${opt('leave', 'Leave')}
+          ${opt('excused', "Excused (pre-notified, couldn't scan)")}
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <label>Time In<input type="time" id="ov-timeIn" value="${esc(prefIn)}" /></label>
+        <label>Time Out<input type="time" id="ov-timeOut" value="${esc(prefOut)}" /></label>
+      </div>
+      <p class="hint" style="margin:6px 2px 14px">Ignored for Day Off / Leave. Leave blank if the actual times aren't known — the day still counts, just with no hours logged.</p>
+      <div class="field">
+        <label>Note (required)</label>
+        <textarea id="ov-note" placeholder="What happened, in your own words...">${esc(existing ? existing.note : '')}</textarea>
+      </div>
+      <p class="err" id="ov-err"></p>
+      <div class="modal-foot">
+        <div>${existing ? '<button class="btn danger small" id="ov-clear">Clear override</button>' : '<span></span>'}</div>
+        <div class="right">
+          <button class="btn ghost" id="ov-cancel">Cancel</button>
+          <button class="btn primary" id="ov-save">Save</button>
+        </div>
+      </div>
+    </div>`
+  $('#ovModal').classList.remove('hidden')
+
+  $('#ov-cancel').addEventListener('click', closeOverrideModal)
+  $('#ov-save').addEventListener('click', async () => {
+    const status = $('#ov-status').value
+    const note = $('#ov-note').value.trim()
+    const timeIn = $('#ov-timeIn').value
+    const timeOut = $('#ov-timeOut').value
+    if (!note) { $('#ov-err').textContent = 'A note is required.'; return }
+    try {
+      await api('/api/overrides', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin, date, status, note, timeIn, timeOut }) })
+      closeOverrideModal(); runTimesheet()
+    } catch (e) { $('#ov-err').textContent = e.message }
+  })
+  if (existing) {
+    $('#ov-clear').addEventListener('click', async () => {
+      if (!confirm('Clear this override? The day falls back to the normal computed status.')) return
+      try {
+        await api(`/api/overrides?pin=${encodeURIComponent(pin)}&date=${date}`, { method: 'DELETE' })
+        closeOverrideModal(); runTimesheet()
+      } catch (e) { $('#ov-err').textContent = e.message }
+    })
+  }
+}
+function closeOverrideModal() { $('#ovModal').classList.add('hidden'); $('#ovModal').innerHTML = '' }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOverrideModal() })
+// The overlay itself is a permanent element (only its children are replaced on
+// each open), so this listener is attached once here — not inside
+// openOverrideModal, which would stack a duplicate on every cell click.
+$('#ovModal').addEventListener('click', e => { if (e.target.id === 'ovModal') closeOverrideModal() })
 
 function shiftTsMonth(delta) {
   const val = $('#ts-month').value; if (!val) return
@@ -257,17 +354,18 @@ function renderEmployees() {
     .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
   const tb = $('#empTable tbody')
   if (!rows.length) {
-    tb.innerHTML = `<tr><td colspan="6"><div class="empty">${Object.keys(empData).length ? 'No staff match your filters.' : 'No staff yet.'}</div></td></tr>`
+    tb.innerHTML = `<tr><td colspan="7"><div class="empty">${Object.keys(empData).length ? 'No staff match your filters.' : 'No staff yet.'}</div></td></tr>`
     return
   }
   tb.innerHTML = rows.map(([pin, v]) => {
     if (editingPin === pin) {
       return `<tr>
-        <td class="mono">${esc(pin)}</td>
+        <td><input type="text" data-f="pin" value="${esc(pin)}" style="width:70px" class="mono" /></td>
         <td><input type="text" data-f="name" value="${esc((v && v.name) || '')}" style="width:160px" /></td>
         <td><select data-f="group" style="padding:5px 9px;font-size:12px">${groupSelectHtml(v && v.group)}</select></td>
         <td><input type="time" data-f="timeIn" value="${esc((v && v.timeIn) || '')}" /></td>
         <td><input type="time" data-f="timeOut" value="${esc((v && v.timeOut) || '')}" /></td>
+        <td><div class="offdays" data-f="offDays">${offDaysHtml(v && v.offDays)}</div></td>
         <td class="actions">
           <button class="btn small primary" data-save="${esc(pin)}">Save</button>
           <button class="btn small ghost" data-cancel="${esc(pin)}">Cancel</button>
@@ -279,6 +377,7 @@ function renderEmployees() {
       <td>${groupChip(v && v.group)}</td>
       <td class="mono">${esc((v && v.timeIn) || '—')}</td>
       <td class="mono">${esc((v && v.timeOut) || '—')}</td>
+      <td class="mono">${(v && v.offDays && v.offDays.length ? v.offDays : [0, 6]).map(d => DOW_SHORT[d]).join(', ')}</td>
       <td class="actions">
         <button class="btn small" data-edit="${esc(pin)}">Edit</button>
         <button class="btn small danger" data-emp="${esc(pin)}">Remove</button>
@@ -288,14 +387,18 @@ function renderEmployees() {
 $('#e-search').addEventListener('input', renderEmployees)
 $('#e-groupFilter').addEventListener('change', renderEmployees)
 
+$('#e-offDays').innerHTML = offDaysHtml([0, 6])
+
 $('#saveEmp').addEventListener('click', async () => {
   $('#empErr').textContent = ''
   const pin = $('#e-pin').value.trim(); if (!pin) { $('#empErr').textContent = 'PIN is required.'; return }
   const name = $('#e-name').value.trim(); if (!name) { $('#empErr').textContent = 'Name is required.'; return }
+  const offDays = readOffDays($('#e-offDays'))
   try {
     await api('/api/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, name, group: $('#e-group').value, timeIn: $('#e-timeIn').value, timeOut: $('#e-timeOut').value }) })
+      body: JSON.stringify({ pin, name, group: $('#e-group').value, timeIn: $('#e-timeIn').value, timeOut: $('#e-timeOut').value, offDays }) })
     $('#e-pin').value = ''; $('#e-name').value = ''; $('#e-group').value = ''; $('#e-timeIn').value = ''; $('#e-timeOut').value = ''
+    $('#e-offDays').innerHTML = offDaysHtml([0, 6])
     loadEmployees()
   } catch (e) { $('#empErr').textContent = e.message }
 })
@@ -315,9 +418,13 @@ $('#empTable').addEventListener('click', async e => {
     const get = f => row.querySelector(`[data-f="${f}"]`).value
     const name = get('name').trim()
     if (!name) { alert('Name cannot be empty. Use Remove to delete a staff member instead.'); return }
+    const newPin = get('pin').trim()
+    if (!newPin) { alert('PIN cannot be empty.'); return }
+    if (newPin !== pin && !confirm(`Change PIN ${pin} to ${newPin}? This person's punch history and any day overrides move with it.`)) return
+    const offDays = readOffDays(row.querySelector('[data-f="offDays"]'))
     try {
       await api('/api/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin, name, group: get('group'), timeIn: get('timeIn'), timeOut: get('timeOut') }) })
+        body: JSON.stringify({ pin, newPin, name, group: get('group'), timeIn: get('timeIn'), timeOut: get('timeOut'), offDays }) })
       editingPin = null
       loadEmployees()
     } catch (err) { alert(err.message) }
