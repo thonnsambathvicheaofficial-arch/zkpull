@@ -1,8 +1,8 @@
-// ZK Report Puller — reports web app. Reads/writes Supabase; punches
-// themselves are collected separately by cloud/agent, which runs on-site (on
-// the same network as the ZKTeco devices) and pushes to Supabase. This app
-// never talks to a device directly — it can't: on Vercel there's no route to
-// a device's private LAN address. Deployable on Vercel or run locally.
+// ZK Report Puller — reports web app. Reads/writes Supabase. Devices with a
+// public_host set (router port-forward) are pulled directly by /api/cron/pull
+// API and app logic. When using Supabase, this app does not touch local JSON
+// files (they remain for standalone local use).
+// TCP pulls are run directly over WAN by targeting the site router's public IP.
 
 const express = require('express')
 const path = require('path')
@@ -21,7 +21,7 @@ app.use('/api', express.json())
 // ── login gate ──────────────────────────────────────────────
 // Everything requires a valid session EXCEPT the login page + its assets and
 // the login endpoint.
-const OPEN = new Set(['/login', '/login.html', '/styles.css', '/logo.png', '/api/login', '/favicon.ico'])
+const OPEN = new Set(['/login', '/login.html', '/styles.css', '/logo.png', '/api/login', '/favicon.ico', '/api/cron/pull'])
 app.use((req, res, next) => {
   if (OPEN.has(req.path)) return next()
   const user = auth.currentUser(req)
@@ -123,8 +123,7 @@ app.get('/api/status', h(async (req, res) => {
 }))
 
 // ── API: devices ────────────────────────────────────────────
-// Editable here even though this app never pulls them itself — cloud/agent
-// (running on-site) reads this same table and picks up changes on its next cycle.
+// Editable here. Uses the Supabase `devices` table.
 app.get('/api/devices', h(async (req, res) => {
   const [devices, counts] = await Promise.all([store.devices.list(), store.punches.countsByDevice()])
   res.json(devices.map(d => ({ ...d, punches: counts[d.id] || 0 })))
@@ -145,6 +144,40 @@ app.patch('/api/devices/:id', h(async (req, res) => {
 }))
 
 app.delete('/api/devices/:id', h(async (req, res) => { await store.devices.remove(req.params.id); res.json({ ok: true }) }))
+
+// ── API: cron pull ──────────────────────────────────────────
+// Dials every device with a public_host set (router port-forward) directly.
+// Bearer-token auth, not the session cookie (see OPEN above): the caller is
+// Read-only toward devices: only ever getInfo()/getAttendances(), never clears.
+// ?full=1 forces a complete read on every device, bypassing the change-gate.
+app.get('/api/cron/pull', h(async (req, res) => {
+  const auth = req.headers.authorization || ''
+  if (auth !== `Bearer ${process.env.CRON_SECRET}`) return res.status(401).json({ error: 'Unauthorized' })
+  const { pullAll } = require('./lib/zkpull')
+  const result = await pullAll({ full: req.query.full === '1' })
+  res.json(result)
+}))
+
+// ── API: manual per-device pull ─────────────────────────────
+// Session-authenticated (logged-in browser only). Pulls a single device by ID.
+// Only works for devices that have a public_host set (direct WAN reach).
+// ?full=1 bypasses the change-detection gate and forces a complete read.
+app.post('/api/devices/:id/pull', h(async (req, res) => {
+  const dev = await store.devices.get(req.params.id)
+  if (!dev) return res.status(404).json({ error: 'Device not found.' })
+  if (dev.type !== 'pull') return res.status(400).json({ error: 'Only TCP-pull devices can be pulled directly.' })
+
+  // Fetch the raw Supabase row so pullOne gets public_host / public_port
+  const sb = require('./lib/supabase')
+  const { data: raw, error } = await sb.from('devices').select('*').eq('id', req.params.id).maybeSingle()
+  if (error) return res.status(500).json({ error: error.message })
+  if (!raw || !raw.public_host) return res.status(400).json({ error: 'This device has no public_host configured — set one in the Supabase devices table first.' })
+
+  const { pullOne } = require('./lib/zkpull')
+  const ZKLib = require('node-zklib')
+  const result = await pullOne(ZKLib, raw, { full: req.query.full === '1' })
+  res.json(result)
+}))
 
 // ── API: reports ────────────────────────────────────────────
 app.get('/api/report/daily', h(async (req, res) => res.json((await reportData(req.query)).daily)))

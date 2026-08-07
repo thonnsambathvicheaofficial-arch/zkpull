@@ -247,6 +247,19 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .chip.group-office{background:#e0f2fe;color:#0369a1;border-color:#bae6fd}
 .chip.group-worker{background:#ecfeff;color:#0e7490;border-color:#a5f3fc}
 .chip.import{background:var(--surface-3);color:var(--muted);border-color:var(--line)}
+.chip.sync-ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line)}
+.chip.sync-stale{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line)}
+.chip.sync-error{background:var(--bad-bg);color:var(--bad);border-color:var(--bad-line)}
+.chip.sync-never{background:var(--surface-3);color:var(--muted);border-color:var(--line)}
+.chip.sync-pulling{background:var(--brand-tint);color:var(--brand);border-color:#c5d9f5;animation:pulse-chip 1s ease-in-out infinite}
+@keyframes pulse-chip{0%,100%{opacity:1}50%{opacity:.55}}
+/* Pull button spinner */
+.pull-spinner{display:inline-block;width:10px;height:10px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.banner{padding:11px 16px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:14px;border:1px solid transparent}
+.banner-ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line)}
+.banner-warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line)}
+.banner code{background:transparent;padding:0;color:inherit;font-weight:800}
 .chip.status-present{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line)}
 .chip.status-late{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line)}
 .chip.status-absent{background:var(--bad-bg);color:var(--bad);border-color:var(--bad-line)}

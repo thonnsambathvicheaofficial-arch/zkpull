@@ -2,16 +2,37 @@
 
 create extension if not exists pgcrypto;
 
--- Devices. The on-site agent reads this list and pulls each 'pull' device.
+-- Devices. The background puller reads this list and pulls each 'pull' device.
 create table if not exists devices (
-  id         uuid primary key default gen_random_uuid(),
-  name       text not null,
-  type       text not null default 'pull',      -- 'pull' | 'adms'
-  ip         text,
-  port       integer not null default 4370,
-  serial     text,
-  created_at timestamptz not null default now()
+  id              uuid primary key default gen_random_uuid(),
+  name            text not null,
+  type            text not null default 'pull',      -- 'pull' | 'adms'
+  ip              text,
+  port            integer not null default 4370,
+  serial          text,
+  created_at      timestamptz not null default now(),
+  last_pull_at    timestamptz,   -- when the puller last attempted this device (success or fail)
+  last_pull_ok    boolean,       -- result of that attempt
+  last_pull_error text,          -- error message when last_pull_ok = false
+  last_pull_count integer        -- new punches pushed on that attempt
 );
+-- Heartbeat columns, written after every pull attempt — this is how the web UI
+-- knows the puller is actually alive and reaching Supabase.
+alter table devices add column if not exists last_pull_at    timestamptz;
+alter table devices add column if not exists last_pull_ok    boolean;
+alter table devices add column if not exists last_pull_error text;
+alter table devices add column if not exists last_pull_count integer;
+
+-- Public endpoint for public_host / public_port: router WAN IP + port forward to the device's internal IP/port
+-- ip/port above stay the device's LAN address (informational)
+-- these are the externally-reachable address /api/cron/pull actually dials.
+-- NULL public_host = not cloud-reachable yet, skipped by the cron gatherer.
+alter table devices add column if not exists public_host     text;
+alter table devices add column if not exists public_port     integer;
+-- Device's own total-record count at our last COMPLETE read — lets the cron
+-- skip the expensive full attendance read when nothing changed (getInfo()'s
+-- count is one cheap command vs. reading the whole buffer over the WAN).
+alter table devices add column if not exists last_log_count  integer;
 
 -- Employees: device PIN -> person's name, group, and work hours.
 create table if not exists employees (
@@ -93,8 +114,8 @@ create table if not exists settings (
 );
 insert into settings (id) values (1) on conflict (id) do nothing;
 
--- RLS: lock everything down. The agent and the Vercel API use the SERVICE key,
--- which bypasses RLS. No anon/browser access — never ship the service key to a client.
+-- RLS: lock everything down. The cron puller and the Vercel API use the SERVICE key,
+-- which bypasses RLS anyway. The anon/public key can read or write absolutely nothing.
 alter table devices       enable row level security;
 alter table employees     enable row level security;
 alter table punches       enable row level security;

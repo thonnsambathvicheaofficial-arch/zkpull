@@ -1,0 +1,13 @@
+diff --git a/node_modules/node-zklib/zklibtcp.js b/node_modules/node-zklib/zklibtcp.js
+index 194a9d8..fd2c50c 100644
+--- a/node_modules/node-zklib/zklibtcp.js
++++ b/node_modules/node-zklib/zklibtcp.js
+@@ -257,7 +257,7 @@ class ZKLibTCP {
+           let realTotalBuffer = Buffer.from([])
+ 
+ 
+-          const timeout = 10000
++          const timeout = 40000
+           let timer = setTimeout(() => {
+             internalCallback(replyData, new Error('TIMEOUT WHEN RECEIVING PACKET'))
+           }, timeout)

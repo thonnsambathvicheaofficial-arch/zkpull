@@ -59,10 +59,11 @@
           <span id="addErr" class="err"></span>
         </div>
       </div>
+      <div id="agentBanner"></div>
       <div class="tablewrap"><table id="devTable"><thead><tr>
-        <th>Name</th><th>Type</th><th>Address</th><th>Serial</th><th>Punches</th><th></th>
+        <th>Name</th><th>Type</th><th>Address</th><th>Serial</th><th>Punches</th><th>Sync</th><th></th>
       </tr></thead><tbody></tbody></table></div>
-      <p class="hint">Managed here, pulled elsewhere: the on-site agent (running on the same network as the devices) reads this list and pulls each TCP device on its own schedule. Add, edit, or remove devices here — changes apply on the agent's next cycle.</p>
+      <p class="hint">TCP Pull devices are queried periodically via background cron job, or can be pulled manually here using the <b>Pull</b> button. Ensure <b>Public Host</b> is configured to allow WAN access.</p>
     </section>
 
     <!-- REPORTS -->
@@ -171,7 +172,7 @@
       <p class="hint">Work start / end are the <strong>defaults</strong> used only for staff who have no personal Time In / Time Out set on the <strong>Staff</strong> tab. Set an individual schedule per person there for an accurate punch rule — grace applies both to a late arrival and an early leave.</p>
 
       <div class="card note" style="margin-top:16px">
-        <strong>Read-only guarantee.</strong> The on-site agent only ever reads from devices — it never clears, wipes, or sends commands to a machine. If a device’s memory fills up, clear it on-site from the device menu.
+        <strong>Read-only guarantee.</strong> The background puller only ever reads from devices — it never clears, wipes, or sends commands to a machine. If a device’s memory fills up, clear it on-site from the device menu.
       </div>
     </section>
 

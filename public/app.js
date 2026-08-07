@@ -49,30 +49,109 @@ async function loadStatus() {
 }
 
 // ── devices ─────────────────────────────────────────────────
+// Relative age string ("3m ago", "2h ago", "5d ago") for a heartbeat timestamp.
+function agoText(iso) {
+  if (!iso) return null
+  const ms = Date.now() - new Date(iso).getTime()
+  const min = Math.floor(ms / 60000)
+  if (min < 1) return 'just now'
+  if (min < 60) return min + 'm ago'
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return hr + 'h ago'
+  return Math.floor(hr / 24) + 'd ago'
+}
+// Sync status for one 'pull' device — the background puller writes lastPullAt/Ok/Error
+// after every attempt, so this is a direct signal it reached Supabase.
+const STALE_MIN = 30 // no successful pull in this long -> cron/puller likely failing
+function syncCellHtml(d) {
+  if (d.type !== 'pull') return '<span class="mono">—</span>'
+  if (!d.lastPullAt) return '<span class="chip sync-never">Never synced</span>'
+  const ageMin = (Date.now() - new Date(d.lastPullAt).getTime()) / 60000
+  const ago = agoText(d.lastPullAt)
+  if (d.lastPullOk === false) return `<span class="chip sync-error" title="${esc(d.lastPullError || '')}">Sync failed · ${ago}</span>`
+  if (ageMin > STALE_MIN) return `<span class="chip sync-stale">Stale · ${ago}</span>`
+  return `<span class="chip sync-ok">Synced ${ago}</span>`
+}
+function renderAgentBanner(list) {
+  const el = $('#agentBanner')
+  const pulled = list.filter(d => d.type === 'pull')
+  if (!pulled.length) { el.innerHTML = ''; return }
+  const latest = pulled.reduce((max, d) => (d.lastPullAt && (!max || d.lastPullAt > max)) ? d.lastPullAt : max, null)
+  const anyOk = pulled.some(d => d.lastPullOk === true && (Date.now() - new Date(d.lastPullAt).getTime()) / 60000 <= STALE_MIN)
+  if (!latest) {
+    el.innerHTML = '<div class="banner banner-warn">Devices have not been synced yet. Configure a Public Host to enable WAN pull.</div>'
+  } else if (!anyOk) {
+    el.innerHTML = `<div class="banner banner-warn">Background sync hasn't succeeded in the last ${STALE_MIN} min (last activity ${esc(agoText(latest))}).</div>`
+  } else {
+    el.innerHTML = `<div class="banner banner-ok">Background sync active — last synced ${esc(agoText(latest))}.</div>`
+  }
+}
 async function loadDevices() {
   const list = await api('/api/devices')
+  renderAgentBanner(list)
   const tb = $('#devTable tbody')
   const opts = '<option value="">All</option>' + list.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('')
   for (const id of ['#r-device', '#ts-device']) {
     const sel = $(id); if (!sel) continue
     const cur = sel.value; sel.innerHTML = opts; sel.value = cur
   }
-  if (!list.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty">No devices yet. Add one — the on-site agent will pick it up on its next pull cycle.</div></td></tr>'; return }
-  tb.innerHTML = list.map(d => `<tr>
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="7"><div class="empty">No devices yet. Add one and configure its public host for background syncing.</div></td></tr>'; return }
+  tb.innerHTML = list.map(d => {
+    const canPull = d.type === 'pull' && d.publicHost
+    return `<tr data-device-id="${d.id}">
       <td><b>${esc(d.name)}</b></td>
       <td><span class="chip ${d.type === 'pull' ? 'pull' : d.type === 'adms' ? 'adms' : 'import'}">${d.type === 'pull' ? 'TCP Pull' : d.type === 'adms' ? 'ADMS' : 'Imported'}</span></td>
       <td class="mono">${d.ip ? esc(d.ip) + ':' + d.port : '—'}</td>
       <td class="mono">${esc(d.serial || '—')}</td>
       <td class="num">${d.punches.toLocaleString()}</td>
+      <td class="sync-cell">${syncCellHtml(d)}</td>
       <td class="actions">
+        ${canPull ? `<button class="btn small pull-btn" data-pull="${d.id}" title="Pull now from ${esc(d.publicHost)}:${d.publicPort || 4370}">⬇ Pull</button>` : ''}
         <button class="btn small danger" data-del="${d.id}">Delete</button>
       </td></tr>`
-  ).join('')
+  }).join('')
 }
 
 $('#devTable').addEventListener('click', async e => {
   const del = e.target.closest('[data-del]')
-  if (del) { if (confirm('Remove this device? Punches already collected are kept.')) { await api('/api/devices/' + del.dataset.del, { method: 'DELETE' }); loadDevices() } }
+  if (del) {
+    if (confirm('Remove this device? Punches already collected are kept.')) {
+      await api('/api/devices/' + del.dataset.del, { method: 'DELETE' })
+      loadDevices()
+    }
+    return
+  }
+
+  const pullBtn = e.target.closest('[data-pull]')
+  if (pullBtn) {
+    const id = pullBtn.dataset.pull
+    const row = pullBtn.closest('tr')
+    const syncCell = row && row.querySelector('.sync-cell')
+
+    // Lock button + show spinner
+    pullBtn.disabled = true
+    pullBtn.innerHTML = '<span class="pull-spinner"></span> Pulling…'
+    if (syncCell) syncCell.innerHTML = '<span class="chip sync-pulling">Pulling…</span>'
+
+    try {
+      const result = await api(`/api/devices/${id}/pull`, { method: 'POST' })
+      if (result.skippedRead) {
+        if (syncCell) syncCell.innerHTML = `<span class="chip sync-ok" title="No new records — device count unchanged (${result.totalOnDevice ?? '?'} total)">No change · just now</span>`
+      } else {
+        const pushed = result.pushed ?? 0
+        const total = result.totalOnDevice ?? '?'
+        const msg = pushed > 0 ? `+${pushed} new · just now` : `Up to date · just now`
+        if (syncCell) syncCell.innerHTML = `<span class="chip sync-ok" title="Read ${total} on device, pushed ${pushed} new">${msg}</span>`
+        if (pushed > 0) loadStatus()   // refresh punch counter in header
+      }
+      // Reload full list after a short delay so heartbeat columns update
+      setTimeout(loadDevices, 800)
+    } catch (err) {
+      if (syncCell) syncCell.innerHTML = `<span class="chip sync-error" title="${esc(err.message)}">Failed · ${esc(err.message.slice(0, 40))}</span>`
+      pullBtn.disabled = false
+      pullBtn.innerHTML = '⬇ Pull'
+    }
+  }
 })
 
 $('#showAdd').addEventListener('click', () => $('#addForm').classList.toggle('hidden'))
