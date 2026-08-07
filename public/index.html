@@ -13,7 +13,7 @@
       <div class="logo"><img src="logo.png" alt="Song Fa Water Tanks" /></div>
       <div>
         <h1>Song Fa Water Tanks</h1>
-        <p>Attendance &amp; Timesheet System · read-only toward every device</p>
+        <p>Attendance &amp; Timesheet System</p>
       </div>
     </div>
     <div class="topright">
@@ -29,7 +29,6 @@
     <button data-tab="employees">Staff</button>
     <button data-tab="settings">Settings</button>
     <button data-tab="users" hidden>Users</button>
-    <button data-tab="activity">Activity</button>
   </nav>
 
   <main>
@@ -38,7 +37,6 @@
       <div class="row-between">
         <h2>Devices</h2>
         <div class="actions">
-          <button id="pullAll" class="btn primary">Pull All (TCP)</button>
           <button id="showAdd" class="btn">+ Add Device</button>
         </div>
       </div>
@@ -62,9 +60,9 @@
         </div>
       </div>
       <div class="tablewrap"><table id="devTable"><thead><tr>
-        <th>Name</th><th>Type</th><th>Address</th><th>Serial</th><th>Punches</th><th>Last sync</th><th></th>
+        <th>Name</th><th>Type</th><th>Address</th><th>Serial</th><th>Punches</th><th></th>
       </tr></thead><tbody></tbody></table></div>
-      <p class="hint" id="admsHint"></p>
+      <p class="hint">Managed here, pulled elsewhere: the on-site agent (running on the same network as the devices) reads this list and pulls each TCP device on its own schedule. Add, edit, or remove devices here — changes apply on the agent's next cycle.</p>
     </section>
 
     <!-- REPORTS -->
@@ -165,7 +163,6 @@
           <label>Work start (late after)<input id="s-workStart" placeholder="08:00" /></label>
           <label>Work end (early leave before)<input id="s-workEnd" placeholder="18:00" /></label>
           <label>Grace minutes<input id="s-grace" type="number" value="5" /></label>
-          <label>Auto-pull every (minutes, 0 = off)<input id="s-auto" type="number" value="0" /></label>
           <label>Timezone (display only)<input id="s-tz" disabled /></label>
         </div>
         <div class="card-foot"><button id="saveSettings" class="btn primary">Save</button><span id="setMsg" class="ok"></span></div>
@@ -173,7 +170,7 @@
       <p class="hint">Work start / end are the <strong>defaults</strong> used only for staff who have no personal Time In / Time Out set on the <strong>Staff</strong> tab. Set an individual schedule per person there for an accurate punch rule — grace applies both to a late arrival and an early leave.</p>
 
       <div class="card note" style="margin-top:16px">
-        <strong>Read-only guarantee.</strong> This tool only ever reads from devices — it never clears, wipes, or sends commands to a machine. If a device’s memory fills up, clear it on-site from the device menu.
+        <strong>Read-only guarantee.</strong> The on-site agent only ever reads from devices — it never clears, wipes, or sends commands to a machine. If a device’s memory fills up, clear it on-site from the device menu.
       </div>
     </section>
 
@@ -191,13 +188,6 @@
         </div>
       </div>
       <div class="tablewrap"><table id="userTable"><thead><tr><th>Username</th><th>Role</th><th></th></tr></thead><tbody></tbody></table></div>
-    </section>
-
-    <!-- ACTIVITY -->
-    <section id="tab-activity" class="tab">
-      <div class="row-between"><h2>Activity</h2><button id="refreshLog" class="btn ghost">Refresh</button></div>
-      <p class="hint">Live feed of pulls and ADMS pushes received.</p>
-      <div class="tablewrap"><table id="logTable"><thead><tr><th>Time</th><th>Type</th><th>Source</th><th>Detail</th></tr></thead><tbody></tbody></table></div>
     </section>
   </main>
 

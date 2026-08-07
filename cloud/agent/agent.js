@@ -58,9 +58,11 @@ async function cycle() {
     let pushed = 0
     if (r.rows.length) {
       // Upsert with ignoreDuplicates → INSERT ... ON CONFLICT DO NOTHING against
-      // the punches_dedup unique index. Re-pulling the whole buffer is always safe.
+      // the punches_dedup unique index (pin, ts) — a PIN is global across
+      // devices, so this also correctly skips punches already captured under a
+      // different device_id (e.g. a historical import). Re-pulling is always safe.
       const { error: upErr, count } = await sb.from('punches')
-        .upsert(r.rows, { onConflict: 'device_id,pin,ts', ignoreDuplicates: true, count: 'exact' })
+        .upsert(r.rows, { onConflict: 'pin,ts', ignoreDuplicates: true, count: 'exact' })
       if (upErr) { console.log(`[${now()}] ${dev.name}: push error — ${upErr.message}`); continue }
       pushed = count ?? 0
     }

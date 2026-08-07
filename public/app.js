@@ -9,7 +9,6 @@ const api = async (url, opts) => {
   return d
 }
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
-const fmtTime = iso => { try { return new Date(iso).toLocaleString() } catch { return iso } }
 
 // ── tabs ────────────────────────────────────────────────────
 $('#tabs').addEventListener('click', e => {
@@ -20,7 +19,6 @@ $('#tabs').addEventListener('click', e => {
   if (b.dataset.tab === 'timesheet') runTimesheet()
   if (b.dataset.tab === 'employees') loadEmployees()
   if (b.dataset.tab === 'users') loadUsers()
-  if (b.dataset.tab === 'activity') loadLog()
 })
 
 // Group badge — used in Staff, Reports, and Timesheet rows.
@@ -36,9 +34,6 @@ async function loadStatus() {
   $('#stats').innerHTML =
     `<div class="stat"><b>${s.devices}</b>devices</div>` +
     `<div class="stat"><b>${s.punches.toLocaleString()}</b>punches</div>`
-  $('#admsHint').innerHTML = s.admsEndpoints.length
-    ? `For ADMS push devices, set the device <b>Cloud Server / ADMS</b> to: ` + s.admsEndpoints.map(u => `<code>${esc(u)}</code>`).join(' or ')
-    : ''
 }
 
 // ── devices ─────────────────────────────────────────────────
@@ -50,44 +45,22 @@ async function loadDevices() {
     const sel = $(id); if (!sel) continue
     const cur = sel.value; sel.innerHTML = opts; sel.value = cur
   }
-  if (!list.length) { tb.innerHTML = '<tr><td colspan="7"><div class="empty">No devices yet. Add one, or point an ADMS device at this server and it appears automatically.</div></td></tr>'; return }
-  tb.innerHTML = list.map(d => {
-    const last = d.last
-    const lastTxt = last ? `${last.ok ? '' : '<span class="chip bad">error</span> '}${esc(last.via || '')} ${last.inserted != null ? '+' + last.inserted : ''} <span class="mono">${fmtTime(last.at)}</span>` : '<span class="mono">—</span>'
-    return `<tr>
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty">No devices yet. Add one — the on-site agent will pick it up on its next pull cycle.</div></td></tr>'; return }
+  tb.innerHTML = list.map(d => `<tr>
       <td><b>${esc(d.name)}</b></td>
       <td><span class="chip ${d.type === 'pull' ? 'pull' : d.type === 'adms' ? 'adms' : 'import'}">${d.type === 'pull' ? 'TCP Pull' : d.type === 'adms' ? 'ADMS' : 'Imported'}</span></td>
       <td class="mono">${d.ip ? esc(d.ip) + ':' + d.port : '—'}</td>
       <td class="mono">${esc(d.serial || '—')}</td>
       <td class="num">${d.punches.toLocaleString()}</td>
-      <td>${lastTxt}</td>
       <td class="actions">
-        ${d.ip ? `<button class="btn small" data-pull="${d.id}">Pull</button>` : ''}
         <button class="btn small danger" data-del="${d.id}">Delete</button>
       </td></tr>`
-  }).join('')
+  ).join('')
 }
 
 $('#devTable').addEventListener('click', async e => {
-  const pull = e.target.closest('[data-pull]'); const del = e.target.closest('[data-del]')
-  if (pull) {
-    pull.disabled = true; pull.textContent = 'Pulling…'
-    try { const r = await api('/api/pull?deviceId=' + pull.dataset.pull, { method: 'POST' })
-      alert(r.ok ? `Pulled ${r.total} records — ${r.inserted} new.` : 'Pull failed: ' + r.error)
-    } catch (e) { alert(e.message) }
-    loadStatus(); loadDevices()
-  }
+  const del = e.target.closest('[data-del]')
   if (del) { if (confirm('Remove this device? Punches already collected are kept.')) { await api('/api/devices/' + del.dataset.del, { method: 'DELETE' }); loadDevices() } }
-})
-
-$('#pullAll').addEventListener('click', async e => {
-  e.target.disabled = true; e.target.textContent = 'Pulling…'
-  try { const r = await api('/api/pull', { method: 'POST' })
-    const ok = r.results.filter(x => x.ok), tot = ok.reduce((a, x) => a + x.inserted, 0)
-    alert(`Pulled ${ok.length}/${r.results.length} devices — ${tot} new records.` + (r.results.some(x => !x.ok) ? '\n\nFailed: ' + r.results.filter(x => !x.ok).map(x => x.device + ' (' + x.error + ')').join(', ') : ''))
-  } catch (e) { alert(e.message) }
-  e.target.disabled = false; e.target.textContent = 'Pull All (TCP)'
-  loadStatus(); loadDevices()
 })
 
 $('#showAdd').addEventListener('click', () => $('#addForm').classList.toggle('hidden'))
@@ -362,22 +335,13 @@ $('#empTable').addEventListener('click', async e => {
 async function loadSettings() {
   const s = await api('/api/settings')
   $('#s-workStart').value = s.workStart || ''; $('#s-workEnd').value = s.workEnd || ''; $('#s-grace').value = s.graceMinutes ?? 0
-  $('#s-auto').value = s.autoPullMinutes ?? 0; $('#s-tz').value = s.timezone || ''
+  $('#s-tz').value = s.timezone || ''
 }
 $('#saveSettings').addEventListener('click', async () => {
   await api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ workStart: $('#s-workStart').value, workEnd: $('#s-workEnd').value, graceMinutes: Number($('#s-grace').value), autoPullMinutes: Number($('#s-auto').value) }) })
+    body: JSON.stringify({ workStart: $('#s-workStart').value, workEnd: $('#s-workEnd').value, graceMinutes: Number($('#s-grace').value) }) })
   $('#setMsg').textContent = 'Saved.'; setTimeout(() => $('#setMsg').textContent = '', 1500)
 })
-
-// ── activity ────────────────────────────────────────────────
-async function loadLog() {
-  const rows = await api('/api/logs')
-  const tb = $('#logTable tbody')
-  tb.innerHTML = rows.length ? rows.map(l => `<tr><td class="mono">${fmtTime(l.at)}</td><td><span class="chip ${l.method === 'PULL' ? 'pull' : 'adms'}">${esc(l.method)}</span></td><td class="mono">${esc(l.sn || l.path || '')}</td><td>${esc(l.note || '')}</td></tr>`).join('')
-    : '<tr><td colspan="4"><div class="empty">No activity yet.</div></td></tr>'
-}
-$('#refreshLog').addEventListener('click', loadLog)
 
 // ── init ────────────────────────────────────────────────────
 function defaultDates() {
