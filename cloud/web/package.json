@@ -1,0 +1,10 @@
+{
+  "name": "zk-report-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vercel web app: attendance reports read from Supabase.",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "xlsx": "^0.18.5"
+  }
+}

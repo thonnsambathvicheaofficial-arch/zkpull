@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Song Fa Water Tanks — Attendance</title>
+  <link rel="icon" href="logo.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo"><img src="logo.png" alt="Song Fa Water Tanks" /></div>
+      <div>
+        <h1>Song Fa Water Tanks</h1>
+        <p>Attendance &amp; Timesheet System · read-only toward every device</p>
+      </div>
+    </div>
+    <div class="topright">
+      <div class="stats" id="stats"></div>
+      <button id="logout" class="logout" title="Sign out"><span id="who"></span>Log out</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="devices" class="active">Devices</button>
+    <button data-tab="reports">Reports</button>
+    <button data-tab="timesheet">Timesheet</button>
+    <button data-tab="employees">Staff</button>
+    <button data-tab="settings">Settings</button>
+    <button data-tab="users" hidden>Users</button>
+    <button data-tab="activity">Activity</button>
+  </nav>
+
+  <main>
+    <!-- DEVICES -->
+    <section id="tab-devices" class="tab active">
+      <div class="row-between">
+        <h2>Devices</h2>
+        <div class="actions">
+          <button id="pullAll" class="btn primary">Pull All (TCP)</button>
+          <button id="showAdd" class="btn">+ Add Device</button>
+        </div>
+      </div>
+      <div id="addForm" class="card hidden">
+        <div class="grid">
+          <label>Name<input id="d-name" placeholder="e.g. K40 — Head Office" /></label>
+          <label>Type
+            <select id="d-type">
+              <option value="pull">TCP Pull (dial the device)</option>
+              <option value="adms">ADMS Push (device sends to us)</option>
+            </select>
+          </label>
+          <label>IP Address<input id="d-ip" placeholder="192.168.0.201" /></label>
+          <label>Port<input id="d-port" value="4370" /></label>
+          <label>Serial (optional, for ADMS matching)<input id="d-serial" placeholder="device serial" /></label>
+        </div>
+        <div class="actions">
+          <button id="saveDevice" class="btn primary">Save</button>
+          <button id="cancelAdd" class="btn ghost">Cancel</button>
+          <span id="addErr" class="err"></span>
+        </div>
+      </div>
+      <div class="tablewrap"><table id="devTable"><thead><tr>
+        <th>Name</th><th>Type</th><th>Address</th><th>Serial</th><th>Punches</th><th>Last sync</th><th></th>
+      </tr></thead><tbody></tbody></table></div>
+      <p class="hint" id="admsHint"></p>
+    </section>
+
+    <!-- REPORTS -->
+    <section id="tab-reports" class="tab">
+      <div class="row-between"><h2>Reports</h2></div>
+      <div class="card filters">
+        <label>From<input type="date" id="r-from" /></label>
+        <label>To<input type="date" id="r-to" /></label>
+        <label>Device<select id="r-device"><option value="">All</option></select></label>
+        <label>Group<select id="r-group"><option value="">All</option><option value="office">Office Staff</option><option value="worker">Worker</option></select></label>
+        <label>PIN<input id="r-pin" placeholder="all" /></label>
+        <label>View
+          <select id="r-kind">
+            <option value="daily">Daily attendance</option>
+            <option value="summary">Employee summary</option>
+            <option value="punches">Raw punches</option>
+          </select>
+        </label>
+        <div class="actions">
+          <button id="runReport" class="btn primary">Run</button>
+          <button id="expReport" class="btn">Export Excel</button>
+        </div>
+      </div>
+      <div class="tablewrap"><table id="repTable"><thead></thead><tbody></tbody></table></div>
+      <p class="hint" id="repMeta"></p>
+    </section>
+
+    <!-- TIMESHEET -->
+    <section id="tab-timesheet" class="tab">
+      <div class="row-between"><h2>Monthly Timesheet</h2></div>
+      <div class="card filters">
+        <label>Month
+          <div class="month-nav">
+            <button type="button" id="tsPrevMonth" class="btn ghost small" title="Previous month">‹</button>
+            <input type="month" id="ts-month" />
+            <button type="button" id="tsNextMonth" class="btn ghost small" title="Next month">›</button>
+          </div>
+        </label>
+        <label>Device<select id="ts-device"><option value="">All</option></select></label>
+        <label>Group<select id="ts-group"><option value="">All</option><option value="office">Office Staff</option><option value="worker">Worker</option></select></label>
+        <label>Search<input id="ts-search" placeholder="name or PIN" /></label>
+        <div class="actions">
+          <button id="runTs" class="btn primary">Run</button>
+          <button id="expTs" class="btn">Export Excel</button>
+        </div>
+      </div>
+
+      <div class="ts-stats" id="tsStats"></div>
+
+      <div class="tablewrap"><table id="tsTable" class="ts"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+      <p class="hint" id="tsMeta">
+        <span class="chip late" style="padding:1px 7px">late</span> = late start ·
+        a violet underline = early leave ·
+        <span class="dot-legend absent"></span> = past weekday, no scan recorded ·
+        click <b>Hrs / Days / Late / Early</b> to sort · blank = no scan.
+      </p>
+    </section>
+
+    <!-- STAFF -->
+    <section id="tab-employees" class="tab">
+      <div class="row-between">
+        <h2>Staff</h2>
+        <div class="actions">
+          <select id="e-groupFilter" style="max-width:150px">
+            <option value="">All groups</option>
+            <option value="office">Office Staff</option>
+            <option value="worker">Worker</option>
+          </select>
+          <input id="e-search" placeholder="Search name or PIN…" style="max-width:200px" />
+        </div>
+      </div>
+      <p class="hint">Map each device PIN to a person, put them in a group, and set their own Time In / Time Out. Late is judged against each person’s Time In (or the default Work start in Settings when left blank) — the same rule applies no matter which device they punch on.</p>
+      <div class="card">
+        <div class="actions" style="align-items:flex-end">
+          <label>PIN<input id="e-pin" placeholder="PIN" style="max-width:100px" /></label>
+          <label>Full name<input id="e-name" placeholder="Full name" /></label>
+          <label>Group
+            <select id="e-group">
+              <option value="">— None —</option>
+              <option value="office">Office Staff</option>
+              <option value="worker">Worker</option>
+            </select>
+          </label>
+          <label>Time In<input id="e-timeIn" type="time" /></label>
+          <label>Time Out<input id="e-timeOut" type="time" /></label>
+          <button id="saveEmp" class="btn primary">Add staff</button>
+          <span id="empErr" class="err"></span>
+        </div>
+      </div>
+      <div class="tablewrap"><table id="empTable"><thead><tr><th>PIN</th><th>Name</th><th>Group</th><th>Time In</th><th>Time Out</th><th></th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="tab-settings" class="tab">
+      <div class="row-between"><h2>Settings</h2></div>
+      <div class="card">
+        <div class="grid">
+          <label>Work start (late after)<input id="s-workStart" placeholder="08:00" /></label>
+          <label>Work end (early leave before)<input id="s-workEnd" placeholder="18:00" /></label>
+          <label>Grace minutes<input id="s-grace" type="number" value="5" /></label>
+          <label>Auto-pull every (minutes, 0 = off)<input id="s-auto" type="number" value="0" /></label>
+          <label>Timezone (display only)<input id="s-tz" disabled /></label>
+        </div>
+        <div class="card-foot"><button id="saveSettings" class="btn primary">Save</button><span id="setMsg" class="ok"></span></div>
+      </div>
+      <p class="hint">Work start / end are the <strong>defaults</strong> used only for staff who have no personal Time In / Time Out set on the <strong>Staff</strong> tab. Set an individual schedule per person there for an accurate punch rule — grace applies both to a late arrival and an early leave.</p>
+
+      <div class="card note" style="margin-top:16px">
+        <strong>Read-only guarantee.</strong> This tool only ever reads from devices — it never clears, wipes, or sends commands to a machine. If a device’s memory fills up, clear it on-site from the device menu.
+      </div>
+    </section>
+
+    <!-- USERS -->
+    <section id="tab-users" class="tab">
+      <div class="row-between"><h2>Users</h2></div>
+      <p class="hint">Who can sign in to this system. Changes apply immediately. Anyone signed in can manage accounts — keep this list to trusted staff.</p>
+      <div class="card">
+        <div class="actions">
+          <input id="nu-name" placeholder="Username" autocomplete="off" style="max-width:190px" />
+          <input id="nu-pass" type="password" placeholder="Password" autocomplete="new-password" style="max-width:210px" />
+          <select id="nu-role" style="max-width:130px"><option value="user">User</option><option value="admin">Admin</option></select>
+          <button id="addUser" class="btn primary">Add user</button>
+          <span id="userErr" class="err"></span>
+        </div>
+      </div>
+      <div class="tablewrap"><table id="userTable"><thead><tr><th>Username</th><th>Role</th><th></th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <!-- ACTIVITY -->
+    <section id="tab-activity" class="tab">
+      <div class="row-between"><h2>Activity</h2><button id="refreshLog" class="btn ghost">Refresh</button></div>
+      <p class="hint">Live feed of pulls and ADMS pushes received.</p>
+      <div class="tablewrap"><table id="logTable"><thead><tr><th>Time</th><th>Type</th><th>Source</th><th>Detail</th></tr></thead><tbody></tbody></table></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
