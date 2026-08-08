@@ -317,17 +317,22 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
    ══════════════════════════════════════════════════════════════ */
 @media (max-width:768px){
 
-  /* 1. Header compact */
-  .topbar{padding:10px 16px;flex-wrap:nowrap}
+  /* Global: ensure [hidden] is truly hidden even inside flex nav */
+  [hidden]{display:none !important}
+
+  /* 1. Header compact — single-line, no subtitle/stats */
+  .topbar{padding:10px 16px;flex-wrap:nowrap;gap:10px}
   .topbar p{display:none}
-  .topbar h1{font-size:16px}
-  .logo{width:38px;height:38px;border-radius:10px;padding:4px}
+  .topbar h1{font-size:16px;letter-spacing:-.02em}
+  .logo{width:36px;height:36px;border-radius:9px;padding:3px}
   .brand{gap:10px}
   .stats{display:none}
-  .logout{padding:7px 10px;font-size:12px;gap:5px}
+  .logout{padding:7px 11px;font-size:12px;gap:0;border-radius:9px}
   .logout #who{display:none}
+  /* Show just "Log out" text */
+  .logout::before{content:"↩";font-size:14px}
 
-  /* 2. Bottom navigation bar */
+  /* 2. Bottom navigation bar — fixed, icon + label, full width */
   .tabs{
     position:fixed;
     top:auto !important;
@@ -343,7 +348,8 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
     justify-content:space-around;
     align-items:stretch;
     background:var(--surface);
-    box-shadow:0 -4px 20px -4px rgba(16,24,40,.10);
+    -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+    box-shadow:0 -1px 0 var(--line),0 -8px 30px -8px rgba(16,24,40,.12);
     overflow:visible;
   }
   .tabs button{
@@ -351,71 +357,141 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
     flex-direction:column;
     align-items:center;
     justify-content:center;
-    gap:4px;
-    padding:10px 4px;
+    gap:3px;
+    padding:9px 4px 10px;
     font-size:10px;
     font-weight:600;
     border-radius:0;
     white-space:nowrap;
+    color:var(--muted);
+    transition:background .12s;
   }
-  .tab-icon{width:22px;height:22px;stroke:var(--muted)}
-  .tab-label{font-size:10px;font-weight:600;letter-spacing:.01em;color:var(--muted)}
+  .tab-icon{width:22px;height:22px;stroke:var(--muted);transition:stroke .15s,transform .2s}
+  .tab-label{font-size:9.5px;font-weight:600;letter-spacing:.01em;color:var(--muted);transition:color .15s}
   .tabs button.active::after{display:none}
-  .tabs button.active .tab-icon{stroke:var(--brand)}
+  .tabs button.active .tab-icon{stroke:var(--brand);transform:translateY(-1px)}
   .tabs button.active .tab-label{color:var(--brand)}
   .tabs button:not(.active) .tab-icon{stroke:var(--muted)}
   .tabs button:not(.active) .tab-label{color:var(--muted)}
   .tabs button:active{background:var(--brand-tint)}
 
-  /* 3. Main content above bottom nav */
-  main{max-width:100%;padding:16px 0 90px;animation:none}
-  .row-between{padding:0 16px;margin-bottom:12px}
+  /* 3. Main content: push above bottom nav, no side padding on wrapper */
+  main{max-width:100%;padding:16px 0 88px;animation:none}
   h2{font-size:17px}
 
-  /* 4. Edge-to-edge cards */
-  .card{border-radius:0;border-left:none;border-right:none}
-  #tab-live .card,#tab-reports .card,#tab-settings .card{border-radius:0;border-left:none;border-right:none}
+  /* 4. Section title rows: horizontal padding */
+  .row-between{padding:0 16px;margin-bottom:10px}
+  .hint{padding:10px 16px;margin:0;font-size:12px}
 
-  /* 5. Full-width table wrapper */
-  .tablewrap{border-radius:0;border-left:none;border-right:none;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* 5. Edge-to-edge cards (flush to screen sides, like native lists) */
+  .card{border-radius:0;border-left:none;border-right:none;margin:0}
+  /* But keep rounded corners inside modals and nested contexts */
+  .modal-overlay .card,.modal,.card > .card{border-radius:var(--radius);border:1px solid var(--line)}
 
-  /* 6. Stacked device table rows */
+  /* 6. Table wrapper: full-bleed, horizontal scroll for data tables */
+  .tablewrap{border-radius:0;border-left:none;border-right:none;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0}
+
+  /* 7. Filters: full-width stacked column layout */
+  .filters{
+    display:flex;flex-direction:column;
+    gap:10px;padding:14px 16px;
+    border-radius:0;border-left:none;border-right:none;
+  }
+  .filters label{width:100%;display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .filters label select,.filters label input{width:100%;font-size:15px;padding:10px 12px}
+  .filters .actions{width:100%;display:flex;gap:8px}
+  .filters .actions .btn{flex:1;justify-content:center;padding:11px 8px;font-size:14px}
+  .month-nav{display:flex;align-items:center;gap:6px}
+  .month-nav input{flex:1}
+
+  /* 8. DEVICE table → stacked card rows */
   #devTable thead{display:none}
-  #devTable tbody tr{display:block;padding:14px 16px;border-bottom:1px solid var(--line)}
-  #devTable td{display:flex;align-items:center;justify-content:space-between;padding:3px 0;border:none;font-size:13px}
-  #devTable td:first-child{font-size:15px;font-weight:700;padding-bottom:6px}
-  #devTable td:last-child{padding-top:10px;justify-content:flex-end;gap:8px}
-  #devTable td[data-label]::before{content:attr(data-label);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-right:8px}
+  #devTable tbody tr{
+    display:flex;flex-direction:column;
+    padding:14px 16px 12px;
+    border-bottom:1px solid var(--line);
+    gap:6px;
+  }
+  #devTable td{display:flex;align-items:center;justify-content:space-between;padding:0;border:none;font-size:13px;line-height:1.4}
+  #devTable td:first-child{font-size:16px;font-weight:700;color:var(--ink)}
+  #devTable td:last-child{margin-top:4px;justify-content:flex-start;gap:8px}
+  #devTable td[data-label]::before{
+    content:attr(data-label);
+    font-size:11px;font-weight:600;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.04em;
+    min-width:56px;flex-shrink:0;
+  }
 
-  /* 7. Stacked employee table rows */
+  /* 9. STAFF (employee) table → stacked card rows */
   #empTable thead{display:none}
-  #empTable tbody tr{display:block;padding:14px 16px;border-bottom:1px solid var(--line)}
-  #empTable td{display:flex;align-items:center;justify-content:space-between;padding:3px 0;border:none;font-size:13px}
-  #empTable td:first-child{font-size:15px;font-weight:700;padding-bottom:6px}
-  #empTable td:last-child{padding-top:10px;justify-content:flex-end;gap:8px}
-  #empTable td[data-label]::before{content:attr(data-label);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-right:8px}
+  #empTable tbody tr{
+    display:flex;flex-direction:column;
+    padding:14px 16px 12px;
+    border-bottom:1px solid var(--line);
+    gap:5px;
+  }
+  #empTable td{display:flex;align-items:center;justify-content:space-between;padding:0;border:none;font-size:13px;line-height:1.4}
+  #empTable td:first-child{font-size:16px;font-weight:700;color:var(--ink)}
+  #empTable td:last-child{margin-top:6px;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+  #empTable td[data-label]::before{
+    content:attr(data-label);
+    font-size:11px;font-weight:600;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.04em;
+    min-width:60px;flex-shrink:0;
+  }
 
-  /* 8. Filters stack vertically */
-  .filters{flex-direction:column;gap:10px;padding:14px 16px;border-radius:0;border-left:none;border-right:none}
-  .filters label{width:100%}
-  .filters select,.filters input[type=date]{width:100%;font-size:14px}
+  /* 10. Staff add form — stack all fields vertically */
+  #tab-employees .card .actions{
+    flex-direction:column;align-items:stretch;gap:10px;
+  }
+  #tab-employees .card label{
+    display:flex;flex-direction:column;gap:4px;
+    font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;
+  }
+  #tab-employees .card input,
+  #tab-employees .card select{width:100%;max-width:none !important;font-size:15px;padding:10px 12px}
+  #tab-employees .card .offdays{justify-content:flex-start}
+  #saveEmp{width:100%;justify-content:center;padding:12px}
 
-  /* 9. Live activity */
-  .live-table td{padding:12px 16px}
-  .live-avatar{width:42px;height:42px;font-size:13px}
+  /* 11. TIMESHEET table — sticky first column, horizontal scroll */
+  #tsTable{min-width:600px}
+  #tsTable th:first-child,
+  #tsTable td:first-child{
+    position:sticky;left:0;z-index:2;
+    background:var(--surface);
+    box-shadow:2px 0 6px -2px rgba(16,24,40,.08);
+    min-width:120px;max-width:140px;
+  }
+  #tsTable thead th:first-child{
+    background:var(--surface-2);z-index:3;
+  }
 
-  /* 10. Timesheet horizontal scroll */
-  .ts-grid-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:0;border-left:none;border-right:none}
+  /* 12. Live activity: tighter padding, larger tap areas */
+  .live-table td{padding:10px 16px}
+  .live-avatar{width:40px;height:40px;font-size:13px}
+  .live-name{font-size:15px}
 
-  /* 11. Buttons */
-  .btn{padding:8px 13px;font-size:13px}
-  .actions{flex-wrap:wrap}
+  /* 13. Buttons: full-width where they are the only action */
+  .btn{padding:10px 14px;font-size:13.5px}
+  .actions{flex-wrap:wrap;gap:8px}
+
+  /* 14. Modal: full-screen sheet on mobile */
+  .modal-overlay{align-items:flex-end;padding:0}
+  .modal{
+    border-radius:20px 20px 0 0;
+    max-width:100%;width:100%;
+    padding:24px 20px 32px;
+    animation:slide-up .25s cubic-bezier(.32,.72,0,1);
+  }
+  @keyframes slide-up{from{transform:translateY(100%)}to{transform:none}}
 }
 
 @media (max-width:400px){
   .tabs button{padding:8px 2px 9px}
   .tab-label{font-size:9px}
+  .live-avatar{width:36px;height:36px;font-size:12px}
 }
+
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 /* ΓöÇΓöÇ dark ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
