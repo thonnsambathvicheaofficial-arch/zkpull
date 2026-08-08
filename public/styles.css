@@ -344,3 +344,54 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
   --bg:#eaeef5;--surface:#ffffff;--surface-2:#f6f8fc;--surface-3:#eff3f9;
   --ink:#111826;--ink-soft:#3c4863;--muted:#77839a;--faint:#9aa6bd;--line:#e3e9f2;--line-soft:#eef2f8;
 }
+
+/* Live Activity Tab */
+.live-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s;
+}
+.live-table tbody tr:hover {
+  background: var(--bg-card-hover);
+}
+.live-table td {
+  padding: 1rem;
+  vertical-align: middle;
+}
+.live-staff-cell {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.live-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #64748b;
+  flex-shrink: 0;
+}
+.live-staff-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.live-name {
+  font-weight: 600;
+  color: var(--text);
+}
+.live-meta {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.live-in-time {
+  text-align: right;
+  font-weight: 600;
+  color: var(--primary);
+}

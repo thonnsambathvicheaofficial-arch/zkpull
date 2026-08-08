@@ -15,6 +15,7 @@ $('#tabs').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return
   document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('active', x === b))
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.id === 'tab-' + b.dataset.tab))
+  if (b.dataset.tab === 'live') loadLive()
   if (b.dataset.tab === 'devices') loadDevices()
   if (b.dataset.tab === 'timesheet') runTimesheet()
   if (b.dataset.tab === 'employees') loadEmployees()
@@ -47,6 +48,67 @@ async function loadStatus() {
     `<div class="stat"><b>${s.devices}</b>devices</div>` +
     `<div class="stat"><b>${s.punches.toLocaleString()}</b>punches</div>`
 }
+
+// ── live activity ───────────────────────────────────────────
+async function loadLive() {
+  const pad = n => String(n).padStart(2, '0')
+  const d = new Date()
+  const today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  const punches = await api(`/api/punches?from=${today}&to=${today}`)
+  
+  const byPin = {}
+  for (const p of punches) {
+    if (!byPin[p.pin]) {
+      byPin[p.pin] = p
+    } else {
+      if (p.time < byPin[p.pin].time) byPin[p.pin] = p
+    }
+  }
+  
+  const rows = Object.values(byPin)
+  rows.sort((a, b) => a.time > b.time ? -1 : a.time < b.time ? 1 : 0)
+  
+  const tbody = $('#liveTable tbody')
+  if (!rows.length) {
+    $('#liveTable').style.display = 'none'
+    $('#liveEmpty').style.display = 'block'
+    return
+  }
+  
+  $('#liveTable').style.display = 'table'
+  $('#liveEmpty').style.display = 'none'
+  
+  const initials = name => (name || '?').split(' ').map(s => s[0]).join('').substring(0, 2).toUpperCase()
+  
+  const formatTime = iso => {
+    const t = new Date(iso)
+    let h = t.getHours(), m = t.getMinutes()
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    h = h % 12; if (h === 0) h = 12
+    return `${pad(h)}:${pad(m)} ${ampm}`
+  }
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>
+        <div class="live-staff-cell">
+          <div class="live-avatar">${esc(initials(r.name))}</div>
+          <div class="live-staff-details">
+            <span class="live-name">${esc(r.name || 'Unknown')}</span>
+            <span class="live-meta">
+              <span>${esc(r.pin)}</span>
+              ${r.group ? `<span>&middot;</span><span style="display:flex;align-items:center;gap:0.25rem;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>${esc(r.group)}</span>` : ''}
+            </span>
+          </div>
+        </div>
+      </td>
+      <td class="live-in-time">
+        ${formatTime(r.time)}
+      </td>
+    </tr>
+  `).join('')
+}
+
 
 // ── devices ─────────────────────────────────────────────────
 // Relative age string ("3m ago", "2h ago", "5d ago") for a heartbeat timestamp.
@@ -589,5 +651,5 @@ async function refreshMe() {
 }
 refreshMe()
 
-defaultDates(); loadStatus(); loadDevices(); loadSettings()
+defaultDates(); loadStatus(); loadLive(); loadDevices(); loadSettings()
 setInterval(loadStatus, 15000)

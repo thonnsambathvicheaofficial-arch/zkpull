@@ -23,7 +23,8 @@
   </header>
 
   <nav class="tabs" id="tabs">
-    <button data-tab="devices" class="active">Devices</button>
+    <button data-tab="live" class="active">Live</button>
+    <button data-tab="devices">Devices</button>
     <button data-tab="reports">Reports</button>
     <button data-tab="timesheet">Timesheet</button>
     <button data-tab="employees">Staff</button>
@@ -32,8 +33,32 @@
   </nav>
 
   <main>
+    <!-- LIVE ACTIVITY -->
+    <section id="tab-live" class="tab active">
+      <div class="row-between">
+        <h2 style="display:flex;align-items:center;gap:0.5rem;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          Today's Activity
+        </h2>
+      </div>
+      <div class="card" style="padding:0;">
+        <table id="liveTable" class="live-table" style="width:100%; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border); text-align: left;">
+              <th style="padding: 1rem; color: var(--text-light); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Staff</th>
+              <th style="padding: 1rem; color: var(--primary); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; text-align: right;">IN</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Live rows go here -->
+          </tbody>
+        </table>
+        <div id="liveEmpty" style="padding: 2rem; text-align: center; color: var(--text-light); display: none;">No activity today.</div>
+      </div>
+    </section>
+
     <!-- DEVICES -->
-    <section id="tab-devices" class="tab active">
+    <section id="tab-devices" class="tab">
       <div class="row-between">
         <h2>Devices</h2>
         <div class="actions">
