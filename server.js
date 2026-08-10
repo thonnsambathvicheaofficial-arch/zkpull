@@ -10,6 +10,7 @@ const path = require('path')
 const store = require('./lib/store')
 const { dailyRows, summaryRows, timesheet } = require('./lib/attendance')
 const { toXlsx } = require('./lib/excel')
+const { to12h } = require('./lib/time')
 const auth = require('./lib/auth')
 
 const app = express()
@@ -101,11 +102,17 @@ const pad = n => String(n).padStart(2, '0')
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` }
 const monthStartStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01` }
 const currentMonthStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}` }
+// Shift a "YYYY-MM-DD" by whole days. Used to fetch a ±1 day margin so shifts
+// that cross midnight at the range edges pair correctly in dailyRows.
+const shiftDate = (s, delta) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + delta); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` }
 
 async function reportData(q) {
   const from = q.from || monthStartStr()
   const to = q.to || todayStr()
-  let punches = await store.punches.query({ deviceId: q.deviceId, from, to, pin: q.pin })
+  // Fetch a ±1 day margin so a shift crossing midnight at either edge pairs
+  // correctly; the daily/summary emit only [from, to], and the raw punches list
+  // is re-scoped to [from, to] below.
+  let punches = await store.punches.query({ deviceId: q.deviceId, from: shiftDate(from, -1), to: shiftDate(to, 1), pin: q.pin })
   const allEmployees = await store.employees.get()
   const allowed = await pinsInGroup(q.group)
   if (allowed) punches = punches.filter(p => allowed.has(p.pin))
@@ -113,7 +120,9 @@ async function reportData(q) {
   const settings = await store.settings.get()
   const overrides = await store.overrides.query({ from, to, pin: q.pin })
   const daily = dailyRows(punches, employees, settings, overrides, from, to)
-  return { punches, daily, summary: summaryRows(daily), names: await store.employees.names() }
+  // Raw punches report/export stays scoped to the requested window only.
+  const scoped = punches.filter(p => { const d = p.time.slice(0, 10); return d >= from && d <= to })
+  return { punches: scoped, daily, summary: summaryRows(daily), names: await store.employees.names() }
 }
 
 // ── API: status ─────────────────────────────────────────────
@@ -189,7 +198,8 @@ async function timesheetData(q) {
   const [y, m] = month.split('-').map(Number)
   const from = `${month}-01`
   const to = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
-  let punches = await store.punches.query({ deviceId: q.deviceId, from, to, pin: q.pin })
+  // ±1 day margin so month-edge midnight-crossing shifts pair correctly.
+  let punches = await store.punches.query({ deviceId: q.deviceId, from: shiftDate(from, -1), to: shiftDate(to, 1), pin: q.pin })
   const allEmployees = await store.employees.get()
   const allowed = await pinsInGroup(q.group)
   if (allowed) punches = punches.filter(p => allowed.has(p.pin))
@@ -265,17 +275,17 @@ app.get('/api/export/:kind', h(async (req, res) => {
   const suffix = req.query.group ? `_${req.query.group}` : ''
   let sheet
   if (req.params.kind === 'summary') {
-    sheet = { name: 'Summary', header: ['PIN', 'Name', 'Group', 'Days', 'Total Hours', 'Late Days', 'Early Leave Days', 'Absent', 'Day Off', 'Leave', 'Excused'],
-      rows: summary.map(r => [r.pin, r.name, glabel(r.group), r.days, r.hours, r.late, r.early, r.absent, r.dayOff, r.leave, r.excused]),
-      cols: [12, 24, 12, 8, 12, 10, 14, 9, 10, 8, 10] }
+    sheet = { name: 'Summary', header: ['PIN', 'Name', 'Group', 'Days', 'Total Hours', 'Late Days', 'Total Min Late', 'Early Leave Days', 'Absent', 'Day Off', 'Leave', 'Excused'],
+      rows: summary.map(r => [r.pin, r.name, glabel(r.group), r.days, r.hours, r.late, r.minLate || 0, r.early, r.absent, r.dayOff, r.leave, r.excused]),
+      cols: [12, 24, 12, 8, 12, 10, 14, 14, 9, 10, 8, 10] }
   } else if (req.params.kind === 'punches') {
     sheet = { name: 'Punches', header: ['Date', 'Time', 'PIN', 'Name', 'Group', 'Source', 'Verify'],
-      rows: punches.sort((a, b) => a.time < b.time ? -1 : 1).map(p => [p.time.slice(0, 10), p.time.slice(11, 19), p.pin, (emps[p.pin] && emps[p.pin].name) || '', glabel(emps[p.pin] && emps[p.pin].group), p.source, p.verify]),
+      rows: punches.sort((a, b) => a.time < b.time ? -1 : 1).map(p => [p.time.slice(0, 10), to12h(p.time.slice(11, 19)), p.pin, (emps[p.pin] && emps[p.pin].name) || '', glabel(emps[p.pin] && emps[p.pin].group), p.source, p.verify]),
       cols: [12, 10, 12, 24, 12, 8, 8] }
   } else {
-    sheet = { name: 'Daily', header: ['Date', 'PIN', 'Name', 'Group', 'Status', 'In', 'Out', 'Hours', 'Punches', 'Late', 'Early Leave', 'Note'],
-      rows: daily.map(r => [r.date, r.pin, r.name, glabel(r.group), slabel(r.status), r.in, r.out, r.hours, r.punches, r.status === 'late' ? 'LATE' : '', r.earlyLeave ? 'EARLY' : '', r.note || '']),
-      cols: [12, 12, 24, 12, 10, 8, 8, 8, 9, 7, 11, 30] }
+    sheet = { name: 'Daily', header: ['Date', 'PIN', 'Name', 'Group', 'Status', 'In', 'Out', 'Hours', 'Punches', 'Late', 'Min Late', 'Early Leave', 'Note'],
+      rows: daily.map(r => [r.date, r.pin, r.name, glabel(r.group), slabel(r.status), to12h(r.in), to12h(r.out), r.hours, r.punches, r.status === 'late' ? 'LATE' : '', r.minutesLate ? r.minutesLate : '', r.earlyLeave ? 'EARLY' : '', r.note || '']),
+      cols: [12, 12, 24, 12, 10, 8, 8, 8, 9, 7, 8, 11, 30] }
   }
   sendXlsx(res, `Attendance_${req.params.kind}${suffix}_${stamp}.xlsx`, toXlsx([sheet]))
 }))
@@ -294,6 +304,35 @@ app.post('/api/employees', h(async (req, res) => {
   if ('newPin' in b && b.newPin != null && String(b.newPin).trim() !== '') data.newPin = b.newPin
   try { await store.employees.set(String(b.pin), data); res.json({ ok: true }) }
   catch (e) { res.status(400).json({ error: e.message }) }
+}))
+
+// ── API: staff suggestions (device-assisted mapping) ────────
+// Review-only: proposes staff to ADD from the devices' enrolled users, strictly
+// the PINs that are (a) still punching recently AND (b) NOT already in the staff
+// list. It never writes and never touches existing staff. Historical/ex-staff
+// enrollments that stopped scanning don't qualify, so they can't leak in.
+const SUGGEST_ACTIVE_DAYS = 60
+app.get('/api/staff-suggestions', h(async (req, res) => {
+  const days = Math.max(1, Math.min(365, Number(req.query.days) || SUGGEST_ACTIVE_DAYS))
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
+  const existing = new Set(Object.keys(await store.employees.get()))   // already-mapped PINs
+  const activity = await store.punches.pinActivity()
+  const active = activity.filter(a => !existing.has(a.pin) && String(a.lastSeen).slice(0, 10) >= cutoff)
+  // Device names are best-effort enrichment. The candidate list above already
+  // stands on its own from the DB, so the live device dial is HARD-CAPPED: if the
+  // devices are busy (e.g. the 5-min cron is mid-pull, which holds the device's
+  // single connection) we return candidates with blank names rather than hang —
+  // critical since this also runs on Vercel with a 60s function limit.
+  const withCap = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r({}), ms))])
+  let names = {}
+  try { names = await withCap(require('./lib/zkpull').deviceUsers(), 18000) } catch { names = {} }
+  const candidates = active.map(a => {
+    const hit = names[a.pin]
+    // A device "name" equal to the PIN means it was enrolled with no real name.
+    const devName = hit && hit.name && hit.name !== a.pin ? hit.name : ''
+    return { pin: a.pin, name: devName, punches: a.total, lastSeen: String(a.lastSeen).slice(0, 10), devices: hit ? hit.devices : [] }
+  }).sort((x, y) => y.punches - x.punches)
+  res.json({ days, count: candidates.length, candidates })
 }))
 
 // ── API: settings ───────────────────────────────────────────

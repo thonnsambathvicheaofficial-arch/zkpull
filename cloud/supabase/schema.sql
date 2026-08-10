@@ -73,6 +73,12 @@ create index if not exists punches_pin_idx on punches (pin);
 create or replace view device_punch_counts as
   select device_id, count(*) as n from punches where device_id is not null group by device_id;
 
+-- Per-PIN activity summary (one row per PIN) — powers the "suggest staff from
+-- devices" review tool. Aggregating in Postgres keeps that endpoint to a single
+-- small read instead of scanning every punch row client-side.
+create or replace view pin_activity as
+  select pin, count(*)::int as total, max(ts) as last_seen from punches group by pin;
+
 -- App login accounts (separate from `employees`, which is attendance-only data).
 -- Password is bcrypt-hashed — never store plaintext once this lives in the cloud.
 create table if not exists login_users (

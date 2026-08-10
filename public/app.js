@@ -9,6 +9,15 @@ const api = async (url, opts) => {
   return d
 }
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+// "HH:MM" or "HH:MM:SS" (24h) -> "h:MM AM/PM" for display. Blank passes through.
+function to12h(t) {
+  if (!t) return ''
+  const p = String(t).split(':')
+  let h = parseInt(p[0], 10); if (isNaN(h)) return t
+  const ap = h < 12 ? 'AM' : 'PM'
+  h = h % 12 || 12
+  return `${h}:${p.slice(1).join(':')} ${ap}`
+}
 
 // ── tabs ────────────────────────────────────────────────────
 $('#tabs').addEventListener('click', e => {
@@ -231,8 +240,8 @@ $('#saveDevice').addEventListener('click', async () => {
 
 // ── reports ─────────────────────────────────────────────────
 const COLS = {
-  daily:   [['date', 'Date'], ['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['status', 'Status'], ['in', 'In'], ['out', 'Out'], ['hours', 'Hours'], ['punches', 'Punches'], ['earlyLeave', 'Early Leave'], ['note', 'Note']],
-  summary: [['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['days', 'Days'], ['hours', 'Total Hours'], ['late', 'Late'], ['early', 'Early Leave'], ['absent', 'Absent'], ['dayOff', 'Day Off'], ['leave', 'Leave'], ['excused', 'Excused']],
+  daily:   [['date', 'Date'], ['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['status', 'Status'], ['in', 'In'], ['out', 'Out'], ['hours', 'Hours'], ['punches', 'Punches'], ['minutesLate', 'Min Late'], ['earlyLeave', 'Early Leave'], ['note', 'Note']],
+  summary: [['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['days', 'Days'], ['hours', 'Total Hours'], ['late', 'Late'], ['minLate', 'Min Late'], ['early', 'Early Leave'], ['absent', 'Absent'], ['dayOff', 'Day Off'], ['leave', 'Leave'], ['excused', 'Excused']],
   punches: [['date', 'Date'], ['time', 'Time'], ['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['source', 'Source'], ['verify', 'Verify']],
 }
 function qs() {
@@ -245,7 +254,7 @@ async function runReport() {
   const url = kind === 'punches' ? '/api/punches?' + qs() : `/api/report/${kind}?` + qs()
   const rows = await api(url)
   const cols = COLS[kind]
-  const NUM_COLS = ['hours', 'days', 'late', 'early', 'punches', 'verify', 'absent', 'dayOff', 'leave', 'excused']
+  const NUM_COLS = ['hours', 'days', 'late', 'minLate', 'minutesLate', 'early', 'punches', 'verify', 'absent', 'dayOff', 'leave', 'excused']
   $('#repTable thead').innerHTML = '<tr>' + cols.map(c => `<th${NUM_COLS.includes(c[0]) ? ' class="num"' : ''}>${c[1]}</th>`).join('') + '</tr>'
   const tb = $('#repTable tbody')
   if (!rows.length) { tb.innerHTML = `<tr><td colspan="${cols.length}"><div class="empty">No records for this filter.</div></td></tr>`; $('#repMeta').textContent = ''; return }
@@ -258,6 +267,8 @@ async function runReport() {
       if (c[0] === 'group') return `<td>${groupChip(v)}</td>`
       if (c[0] === 'status') return `<td><span class="chip status-${esc(v)}">${esc(STATUS_LABEL[v] || v || '')}</span></td>`
       if (c[0] === 'note') return `<td class="note-text">${esc(v || '')}</td>`
+      if (c[0] === 'minutesLate' || c[0] === 'minLate') return `<td class="num">${v ? esc(v) : ''}</td>`
+      if (c[0] === 'in' || c[0] === 'out' || c[0] === 'time') return `<td>${esc(to12h(v))}</td>`
       const num = NUM_COLS.includes(c[0])
       return `<td class="${num ? 'num' : ''}">${esc(v ?? '')}</td>`
     }).join('') + '</tr>'
@@ -349,7 +360,7 @@ function renderTimesheet() {
       const statusCls = STATUS_CLASS[c.status] || ''
       const cls = ['day-cell', d.weekend ? 'wend' : '', statusCls, c.earlyLeave ? 'early' : '', c.overridden ? 'has-note' : '', todayCls].filter(Boolean).join(' ')
       const titleBits = [STATUS_LABEL[c.status] || c.status]
-      if (c.in) titleBits.push(`${c.in}-${c.out || '?'}`)
+      if (c.in) titleBits.push(`${to12h(c.in)} – ${c.out ? to12h(c.out) : '?'}`)
       if (c.earlyLeave) titleBits.push('left early')
       if (c.note) titleBits.push('Note: ' + c.note)
       const text = (c.status === 'present' || c.status === 'late' || (c.status === 'excused' && c.hours)) ? (c.hours || '') : ''
@@ -578,6 +589,94 @@ $('#empTable').addEventListener('click', async e => {
     loadEmployees()
   }
 })
+
+// ── Suggest staff from devices (review tool) ───────────────
+// Shows ONLY PINs that are actively punching AND not already in the staff list,
+// enriched with the name enrolled on the device. Review-only — nothing is added
+// until you tick rows and click "Add selected". Existing staff are never shown
+// or modified.
+$('#suggestStaff').addEventListener('click', openSuggestModal)
+
+async function openSuggestModal() {
+  const m = $('#suggestModal')
+  m.innerHTML = `<div class="modal" style="max-width:520px;width:94vw">
+      <h3>Suggest staff from devices</h3>
+      <p class="sub">Reading the enrolled user list from the devices…</p>
+    </div>`
+  m.classList.remove('hidden')
+  let data
+  try { data = await api('/api/staff-suggestions') }
+  catch (e) { const s = m.querySelector('.sub'); if (s) s.textContent = 'Failed: ' + e.message; return }
+  const rows = data.candidates || []
+
+  if (!rows.length) {
+    m.innerHTML = `<div class="modal" style="max-width:520px;width:94vw">
+        <h3>Suggest staff from devices</h3>
+        <p class="sub">No unmapped PINs have punched in the last ${data.days} days — your staff list is up to date.</p>
+        <div class="modal-foot"><span></span><div class="right"><button class="btn primary" id="sg-close">Close</button></div></div>
+      </div>`
+    $('#sg-close').addEventListener('click', closeSuggestModal); return
+  }
+
+  const rowHtml = rows.map((c, i) => `<tr>
+      <td style="text-align:center"><input type="checkbox" class="sg-pick" data-i="${i}"${c.name ? ' checked' : ''} /></td>
+      <td class="mono">${esc(c.pin)}</td>
+      <td><input class="sg-name" data-i="${i}" value="${esc(c.name)}" placeholder="type name…" style="width:100%" /></td>
+      <td><select class="sg-group" data-i="${i}"><option value="">— None —</option><option value="office">Office</option><option value="worker">Worker</option></select></td>
+      <td class="num">${c.punches.toLocaleString()}</td>
+      <td class="mono" style="font-size:11px">${esc(c.lastSeen)}</td>
+    </tr>`).join('')
+
+  m.innerHTML = `<div class="modal" style="max-width:720px;width:96vw">
+      <h3>Suggest staff from devices</h3>
+      <p class="sub">${rows.length} PINs are actively punching but aren't in your staff list. Tick the ones to add, fill in any blank names, then Add selected. Names blank on the device (enrolled with just a number) start unticked.</p>
+      <div style="max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:10px">
+        <table class="sg-table" style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr>
+            <th style="width:36px"></th><th>PIN</th><th>Name</th><th style="width:120px">Group</th><th class="num">Punches</th><th>Last seen</th>
+          </tr></thead>
+          <tbody>${rowHtml}</tbody>
+        </table>
+      </div>
+      <p class="err" id="sg-err"></p>
+      <div class="modal-foot">
+        <span></span>
+        <div class="right">
+          <button class="btn ghost" id="sg-cancel">Cancel</button>
+          <button class="btn primary" id="sg-add">Add selected</button>
+        </div>
+      </div>
+    </div>`
+  m._candidates = rows
+  $('#sg-cancel').addEventListener('click', closeSuggestModal)
+  $('#sg-add').addEventListener('click', addSelectedSuggestions)
+}
+
+async function addSelectedSuggestions() {
+  const m = $('#suggestModal')
+  const rows = m._candidates || []
+  const toAdd = []
+  for (const cb of m.querySelectorAll('.sg-pick')) {
+    if (!cb.checked) continue
+    const i = Number(cb.dataset.i)
+    const name = (m.querySelector(`.sg-name[data-i="${i}"]`).value || '').trim()
+    if (!name) continue   // picked but still nameless — skip
+    toAdd.push({ pin: rows[i].pin, name, group: m.querySelector(`.sg-group[data-i="${i}"]`).value })
+  }
+  if (!toAdd.length) { $('#sg-err').textContent = 'Nothing to add — tick rows and give each a name.'; return }
+  $('#sg-add').disabled = true; $('#sg-err').textContent = ''
+  let ok = 0, fail = 0
+  for (const s of toAdd) {
+    try { await api('/api/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(s) }); ok++ }
+    catch { fail++ }
+  }
+  closeSuggestModal()
+  loadEmployees()
+  alert(`Added ${ok} staff${fail ? `, ${fail} failed` : ''}.`)
+}
+
+function closeSuggestModal() { const m = $('#suggestModal'); m.classList.add('hidden'); m.innerHTML = ''; m._candidates = null }
+$('#suggestModal').addEventListener('click', e => { if (e.target.id === 'suggestModal') closeSuggestModal() })
 
 // ── settings ────────────────────────────────────────────────
 async function loadSettings() {
