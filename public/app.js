@@ -65,7 +65,7 @@ async function loadLive() {
     }
   }
   
-  const rows = Object.values(byPin)
+  const rows = Object.values(byPin).filter(r => r.name && r.name.trim() !== '')
   rows.sort((a, b) => a.time > b.time ? -1 : a.time < b.time ? 1 : 0)
   
   const tbody = $('#liveTable tbody')
