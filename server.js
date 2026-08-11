@@ -8,7 +8,7 @@ const express = require('express')
 const path = require('path')
 
 const store = require('./lib/store')
-const { dailyRows, summaryRows, timesheet } = require('./lib/attendance')
+const { dailyRows, summaryRows, timesheet, aliasToPrimary } = require('./lib/attendance')
 const { toXlsx } = require('./lib/excel')
 const { to12h } = require('./lib/time')
 const auth = require('./lib/auth')
@@ -98,6 +98,14 @@ function filterEmployees(all, q, allowed) {
   return out
 }
 
+// Roll each punch's PIN up to its primary (alias support) so a person enrolled
+// under multiple device PINs resolves to ONE staff record everywhere.
+function canonPunches(punches, employees) {
+  const a = aliasToPrimary(employees)
+  return Object.keys(a).length ? punches.map(p => (a[p.pin] ? { ...p, pin: a[p.pin] } : p)) : punches
+}
+const canonPin = (pin, employees) => { const a = aliasToPrimary(employees); return a[String(pin)] || String(pin) }
+
 const pad = n => String(n).padStart(2, '0')
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` }
 const monthStartStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01` }
@@ -112,13 +120,17 @@ async function reportData(q) {
   // Fetch a ±1 day margin so a shift crossing midnight at either edge pairs
   // correctly; the daily/summary emit only [from, to], and the raw punches list
   // is re-scoped to [from, to] below.
-  let punches = await store.punches.query({ deviceId: q.deviceId, from: shiftDate(from, -1), to: shiftDate(to, 1), pin: q.pin })
   const allEmployees = await store.employees.get()
+  // Fetch without pin scoping (a person's alias punches live under other PINs),
+  // canonicalize, THEN filter — so alias punches aren't dropped before roll-up.
+  let punches = canonPunches(await store.punches.query({ deviceId: q.deviceId, from: shiftDate(from, -1), to: shiftDate(to, 1) }), allEmployees)
+  const cpin = q.pin ? canonPin(q.pin, allEmployees) : null
   const allowed = await pinsInGroup(q.group)
   if (allowed) punches = punches.filter(p => allowed.has(p.pin))
-  const employees = filterEmployees(allEmployees, q, allowed)
+  if (cpin) punches = punches.filter(p => p.pin === cpin)
+  const employees = filterEmployees(allEmployees, { pin: cpin, group: q.group }, allowed)
   const settings = await store.settings.get()
-  const overrides = await store.overrides.query({ from, to, pin: q.pin })
+  const overrides = await store.overrides.query({ from, to, pin: cpin })
   const daily = dailyRows(punches, employees, settings, overrides, from, to)
   // Raw punches report/export stays scoped to the requested window only.
   const scoped = punches.filter(p => { const d = p.time.slice(0, 10); return d >= from && d <= to })
@@ -205,23 +217,29 @@ async function timesheetData(q) {
   const [y, m] = month.split('-').map(Number)
   const from = `${month}-01`
   const to = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
-  // ±1 day margin so month-edge midnight-crossing shifts pair correctly.
-  let punches = await store.punches.query({ deviceId: q.deviceId, from: shiftDate(from, -1), to: shiftDate(to, 1), pin: q.pin })
   const allEmployees = await store.employees.get()
+  // ±1 day margin so month-edge midnight-crossing shifts pair; canonicalize
+  // alias PINs before filtering so a person's alias punches aren't dropped.
+  let punches = canonPunches(await store.punches.query({ deviceId: q.deviceId, from: shiftDate(from, -1), to: shiftDate(to, 1) }), allEmployees)
+  const cpin = q.pin ? canonPin(q.pin, allEmployees) : null
   const allowed = await pinsInGroup(q.group)
   if (allowed) punches = punches.filter(p => allowed.has(p.pin))
-  const employees = filterEmployees(allEmployees, q, allowed)
+  if (cpin) punches = punches.filter(p => p.pin === cpin)
+  const employees = filterEmployees(allEmployees, { pin: cpin, group: q.group }, allowed)
   const settings = await store.settings.get()
-  const overrides = await store.overrides.query({ from, to, pin: q.pin })
+  const overrides = await store.overrides.query({ from, to, pin: cpin })
   return timesheet(punches, employees, settings, overrides, month)
 }
 app.get('/api/report/timesheet', h(async (req, res) => res.json(await timesheetData(req.query))))
 
 app.get('/api/punches', h(async (req, res) => {
   const emps = await store.employees.get()
-  let rows = await store.punches.query(req.query)
+  // Canonicalize alias PINs to the primary so a person's punches (and the Live
+  // Activity feed) show under one name regardless of which PIN they scanned.
+  let rows = canonPunches(await store.punches.query({ deviceId: req.query.deviceId, from: req.query.from, to: req.query.to }), emps)
   const allowed = await pinsInGroup(req.query.group)
   if (allowed) rows = rows.filter(p => allowed.has(p.pin))
+  if (req.query.pin) { const cp = canonPin(req.query.pin, emps); rows = rows.filter(p => p.pin === cp) }
   rows = rows.sort((a, b) => a.time < b.time ? -1 : a.time > b.time ? 1 : 0)
     .map(p => ({ ...p, name: (emps[p.pin] && emps[p.pin].name) || '', group: (emps[p.pin] && emps[p.pin].group) || null }))
   res.json(rows)
@@ -313,6 +331,19 @@ app.post('/api/employees', h(async (req, res) => {
   catch (e) { res.status(400).json({ error: e.message }) }
 }))
 
+// Alias PINs — link another device PIN to a staff member (same person, non-global
+// PIN). Punches under the alias roll up to :pin; a separate staff row for the
+// alias is folded in. See store.employees.addAlias / attendance.aliasToPrimary.
+app.post('/api/employees/:pin/alias', h(async (req, res) => {
+  const aliasPin = req.body && req.body.aliasPin != null ? String(req.body.aliasPin) : ''
+  try { await store.employees.addAlias(String(req.params.pin), aliasPin); res.json({ ok: true }) }
+  catch (e) { res.status(400).json({ error: e.message }) }
+}))
+app.delete('/api/employees/:pin/alias/:aliasPin', h(async (req, res) => {
+  try { await store.employees.removeAlias(String(req.params.pin), String(req.params.aliasPin)); res.json({ ok: true }) }
+  catch (e) { res.status(400).json({ error: e.message }) }
+}))
+
 // ── API: staff suggestions (device-assisted mapping) ────────
 // Review-only: proposes staff to ADD from the devices' enrolled users, strictly
 // the PINs that are (a) still punching recently AND (b) NOT already in the staff
@@ -322,7 +353,10 @@ const SUGGEST_ACTIVE_DAYS = 60
 app.get('/api/staff-suggestions', h(async (req, res) => {
   const days = Math.max(1, Math.min(365, Number(req.query.days) || SUGGEST_ACTIVE_DAYS))
   const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
-  const existing = new Set(Object.keys(await store.employees.get()))   // already-mapped PINs
+  const emps = await store.employees.get()
+  // Already-mapped = primary PINs AND their alias PINs (an alias is not unmapped).
+  const existing = new Set(Object.keys(emps))
+  for (const e of Object.values(emps)) for (const a of (e.aliases || [])) existing.add(a)
   const activity = await store.punches.pinActivity()
   const active = activity.filter(a => !existing.has(a.pin) && String(a.lastSeen).slice(0, 10) >= cutoff)
   // Device names come from the device_users cache (refreshed by the puller), so

@@ -41,9 +41,11 @@ create table if not exists employees (
   "group"   text,     -- e.g. 'office' | 'worker' — free text, filters reports
   time_in   text,      -- "HH:MM" — falls back to settings.workStart when null
   time_out  text,      -- "HH:MM" — falls back to settings.workEnd when null
-  off_days  integer[] not null default '{0,6}'   -- weekly recurring days off (0=Sun..6=Sat)
+  off_days  integer[] not null default '{0,6}',   -- weekly recurring days off (0=Sun..6=Sat)
+  aliases   text[] not null default '{}'   -- other device PINs that are the SAME person (non-global PIN); punches under any alias roll up to this row's pin
 );
 alter table employees add column if not exists off_days integer[] not null default '{0,6}';
+alter table employees add column if not exists aliases  text[] not null default '{}';
 
 -- Raw punches. ts = the device's LOCAL wall-clock (no timezone conversion).
 create table if not exists punches (

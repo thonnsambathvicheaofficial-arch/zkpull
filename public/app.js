@@ -497,6 +497,13 @@ function groupSelectHtml(selected) {
     `<option value="worker"${selected === 'worker' ? ' selected' : ''}>Worker</option>`
 }
 
+// Alias editor cell (edit mode): existing alias PINs as removable chips + a
+// "link another PIN" input. Linking an already-existing staff PIN folds it in.
+function aliasEditHtml(pin, aliases) {
+  const chips = (aliases || []).map(a => `<span class="chip alias-chip">${esc(a)}<button class="alias-x" data-rmalias="${esc(a)}" data-primary="${esc(pin)}" title="Unlink PIN">&times;</button></span>`).join(' ')
+  return `<div class="alias-edit">${chips}<input type="text" class="mono alias-add-input" placeholder="+PIN" style="width:54px" /><button class="btn small" data-addalias="${esc(pin)}">Link</button></div>`
+}
+
 function renderEmployees() {
   const q = ($('#e-search').value || '').toLowerCase()
   const gf = $('#e-groupFilter').value
@@ -506,7 +513,7 @@ function renderEmployees() {
     .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
   const tb = $('#empTable tbody')
   if (!rows.length) {
-    tb.innerHTML = `<tr><td colspan="7"><div class="empty">${Object.keys(empData).length ? 'No staff match your filters.' : 'No staff yet.'}</div></td></tr>`
+    tb.innerHTML = `<tr><td colspan="8"><div class="empty">${Object.keys(empData).length ? 'No staff match your filters.' : 'No staff yet.'}</div></td></tr>`
     return
   }
   tb.innerHTML = rows.map(([pin, v]) => {
@@ -518,6 +525,7 @@ function renderEmployees() {
         <td><input type="time" data-f="timeIn" value="${esc((v && v.timeIn) || '')}" /></td>
         <td><input type="time" data-f="timeOut" value="${esc((v && v.timeOut) || '')}" /></td>
         <td><div class="offdays" data-f="offDays">${offDaysHtml(v && v.offDays)}</div></td>
+        <td>${aliasEditHtml(pin, v && v.aliases)}</td>
         <td class="actions">
           <button class="btn small primary" data-save="${esc(pin)}">Save</button>
           <button class="btn small ghost" data-cancel="${esc(pin)}">Cancel</button>
@@ -530,6 +538,7 @@ function renderEmployees() {
       <td class="mono">${esc((v && v.timeIn) || '—')}</td>
       <td class="mono">${esc((v && v.timeOut) || '—')}</td>
       <td class="mono">${(v && v.offDays && v.offDays.length ? v.offDays : [0, 6]).map(d => DOW_SHORT[d]).join(', ')}</td>
+      <td>${(v && v.aliases && v.aliases.length) ? v.aliases.map(a => `<span class="chip alias-chip">${esc(a)}</span>`).join(' ') : '<span class="mono">—</span>'}</td>
       <td class="actions">
         <button class="btn small" data-edit="${esc(pin)}">Edit</button>
         <button class="btn small danger" data-emp="${esc(pin)}">Remove</button>
@@ -563,6 +572,25 @@ $('#empTable').addEventListener('click', async e => {
 
   if (editBtn) { editingPin = editBtn.dataset.edit; renderEmployees(); return }
   if (cancelBtn) { editingPin = null; renderEmployees(); return }
+
+  const addAliasBtn = e.target.closest('[data-addalias]')
+  if (addAliasBtn) {
+    const primary = addAliasBtn.dataset.addalias
+    const input = addAliasBtn.closest('.alias-edit').querySelector('.alias-add-input')
+    const aliasPin = (input.value || '').trim()
+    if (!aliasPin) return
+    if (!confirm(`Link PIN ${aliasPin} to this person? Its punches will roll up here, and if ${aliasPin} is a separate staff record it will be merged in.`)) return
+    try { await api(`/api/employees/${encodeURIComponent(primary)}/alias`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aliasPin }) }); loadEmployees() }
+    catch (err) { alert(err.message) }
+    return
+  }
+  const rmAliasBtn = e.target.closest('[data-rmalias]')
+  if (rmAliasBtn) {
+    const primary = rmAliasBtn.dataset.primary, aliasPin = rmAliasBtn.dataset.rmalias
+    try { await api(`/api/employees/${encodeURIComponent(primary)}/alias/${encodeURIComponent(aliasPin)}`, { method: 'DELETE' }); loadEmployees() }
+    catch (err) { alert(err.message) }
+    return
+  }
 
   if (saveBtn) {
     const pin = saveBtn.dataset.save
