@@ -63,7 +63,7 @@ h2{font-size:19px;font-weight:700;color:var(--ink);text-wrap:balance}
   display:inline-flex;align-items:center;gap:7px;transition:background .15s,border-color .15s}
 .logout:hover{background:rgba(255,255,255,.16);color:#fff}
 .logout #who{color:#9fb0d6;font-weight:500}
-.logout #who:not(:empty)::after{content:"┬╖";margin-left:7px;color:#5b6c92}
+.logout #who:not(:empty)::after{content:"\00B7";margin-left:7px;color:#5b6c92}
 
 /* ΓöÇΓöÇ tabs ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .tabs{
