@@ -308,9 +308,22 @@ app.get('/api/export/:kind', h(async (req, res) => {
       rows: punches.sort((a, b) => a.time < b.time ? -1 : 1).map(p => [p.time.slice(0, 10), to12h(p.time.slice(11, 19)), p.pin, (emps[p.pin] && emps[p.pin].name) || '', glabel(emps[p.pin] && emps[p.pin].group), p.source, p.verify]),
       cols: [12, 10, 12, 24, 12, 8, 8] }
   } else {
-    sheet = { name: 'Daily', header: ['Date', 'PIN', 'Name', 'Group', 'Status', 'In', 'Out', 'Hours', 'Punches', 'Late', 'Min Late', 'Early Leave', 'Note'],
-      rows: daily.map(r => [r.date, r.pin, r.name, glabel(r.group), slabel(r.status), to12h(r.in), to12h(r.out), r.hours, r.punches, r.status === 'late' ? 'LATE' : '', r.minutesLate ? r.minutesLate : '', r.earlyLeave ? 'EARLY' : '', r.note || '']),
-      cols: [12, 12, 24, 12, 10, 8, 8, 8, 9, 7, 8, 11, 30] }
+    if (req.query.allPunches === '1') {
+      // Expand punches into individual columns (Punch 1, Punch 2, …)
+      const maxP = daily.reduce((m, r) => Math.max(m, (r.allPunches || []).length), 0)
+      const punchHeaders = Array.from({ length: maxP }, (_, i) => `Punch ${i + 1}`)
+      sheet = { name: 'Daily',
+        header: ['Date', 'PIN', 'Name', 'Group', 'Status', 'In', 'Out', ...punchHeaders, 'Hours', 'Punches', 'Late', 'Min Late', 'Early Leave', 'Note'],
+        rows: daily.map(r => {
+          const punchCells = Array.from({ length: maxP }, (_, i) => to12h((r.allPunches || [])[i] || ''))
+          return [r.date, r.pin, r.name, glabel(r.group), slabel(r.status), to12h(r.in), to12h(r.out), ...punchCells, r.hours, r.punches, r.status === 'late' ? 'LATE' : '', r.minutesLate ? r.minutesLate : '', r.earlyLeave ? 'EARLY' : '', r.note || '']
+        }),
+        cols: [12, 12, 24, 12, 10, 8, 8, ...Array(maxP).fill(9), 8, 9, 7, 8, 11, 30] }
+    } else {
+      sheet = { name: 'Daily', header: ['Date', 'PIN', 'Name', 'Group', 'Status', 'In', 'Out', 'Hours', 'Punches', 'Late', 'Min Late', 'Early Leave', 'Note'],
+        rows: daily.map(r => [r.date, r.pin, r.name, glabel(r.group), slabel(r.status), to12h(r.in), to12h(r.out), r.hours, r.punches, r.status === 'late' ? 'LATE' : '', r.minutesLate ? r.minutesLate : '', r.earlyLeave ? 'EARLY' : '', r.note || '']),
+        cols: [12, 12, 24, 12, 10, 8, 8, 8, 9, 7, 8, 11, 30] }
+    }
   }
   sendXlsx(res, `Attendance_${req.params.kind}${suffix}_${stamp}.xlsx`, toXlsx([sheet]))
 }))

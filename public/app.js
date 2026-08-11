@@ -59,37 +59,96 @@ async function loadStatus() {
 }
 
 // ── live activity ───────────────────────────────────────────
+let _liveAllRows = []   // cached raw grouped rows for client-side filtering
+
 async function loadLive() {
   const pad = n => String(n).padStart(2, '0')
   const d = new Date()
   const today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
   const punches = await api(`/api/punches?from=${today}&to=${today}`)
-  
+
   const byPin = {}
   for (const p of punches) {
     if (!byPin[p.pin]) {
-      byPin[p.pin] = p
+      byPin[p.pin] = { ...p, allTimes: [p.time] }
     } else {
-      if (p.time < byPin[p.pin].time) byPin[p.pin] = p
+      if (!byPin[p.pin].allTimes.includes(p.time)) {
+        byPin[p.pin].allTimes.push(p.time)
+      }
+      if (p.time > byPin[p.pin].time) {
+        byPin[p.pin].time = p.time
+      }
     }
   }
-  
-  const rows = Object.values(byPin).filter(r => r.name && r.name.trim() !== '')
-  rows.sort((a, b) => a.time > b.time ? -1 : a.time < b.time ? 1 : 0)
-  
+
+  _liveAllRows = Object.values(byPin).filter(r => r.name && r.name.trim() !== '')
+  renderLive()
+}
+
+function renderLive() {
+  const pad = n => String(n).padStart(2, '0')
+  const group  = $('#live-group').value
+  const search = ($('#live-search').value || '').toLowerCase()
+  const sort   = $('#live-sort').value
+  const show   = $('#live-show').value
+
+  let rows = _liveAllRows.slice()
+
+  // Group filter
+  if (group) rows = rows.filter(r => r.group === group)
+
+  // Search filter
+  if (search) rows = rows.filter(r =>
+    (r.name || '').toLowerCase().includes(search) || r.pin.includes(search))
+
+  // Show filter (punch count)
+  if (show === 'single') rows = rows.filter(r => r.allTimes.length === 1)
+  if (show === 'multi')  rows = rows.filter(r => r.allTimes.length > 1)
+
+  // Sort
+  if (sort === 'recent') rows.sort((a, b) => b.time.localeCompare(a.time))
+  if (sort === 'name')   rows.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  if (sort === 'first')  rows.sort((a, b) => {
+    const fa = [...a.allTimes].sort()[0] || ''
+    const fb = [...b.allTimes].sort()[0] || ''
+    return fa.localeCompare(fb)
+  })
+
+  // Update badge (total unfiltered count vs filtered)
+  const badge = $('#liveBadge')
+  badge.style.display = ''
+  badge.textContent = rows.length === _liveAllRows.length
+    ? `${rows.length} in`
+    : `${rows.length} / ${_liveAllRows.length}`
+
   const tbody = $('#liveTable tbody')
+  const thead = $('#liveTable thead')
   if (!rows.length) {
     $('#liveTable').style.display = 'none'
     $('#liveEmpty').style.display = 'block'
     return
   }
-  
+
   $('#liveTable').style.display = 'table'
   $('#liveEmpty').style.display = 'none'
-  
+
+  const maxP = rows.reduce((m, r) => Math.max(m, r.allTimes.length), 1)
+
+  // Build the dynamic header
+  let headHTML = `
+    <tr style="border-bottom: 1px solid var(--border); text-align: left;">
+      <th style="padding: 1rem; color: var(--text-light); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Staff</th>
+  `
+  for (let i = 0; i < maxP; i++) {
+    headHTML += `<th style="padding: 1rem; color: var(--primary); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; text-align: right; white-space: nowrap;">Punch ${i + 1}</th>`
+  }
+  headHTML += `</tr>`
+  thead.innerHTML = headHTML
+
   const initials = name => (name || '?').split(' ').map(s => s[0]).join('').substring(0, 2).toUpperCase()
-  
+
   const formatTime = iso => {
+    if (!iso) return ''
     const t = new Date(iso)
     let h = t.getHours(), m = t.getMinutes()
     const ampm = h >= 12 ? 'PM' : 'AM'
@@ -97,7 +156,15 @@ async function loadLive() {
     return `${pad(h)}:${pad(m)} ${ampm}`
   }
 
-  tbody.innerHTML = rows.map(r => `
+  tbody.innerHTML = rows.map(r => {
+    const times = r.allTimes.slice().sort()
+    let punchCells = ''
+    for (let i = 0; i < maxP; i++) {
+      const isPresent = !!times[i]
+      punchCells += `<td class="live-in-time" style="line-height: 1.6; text-align: right; font-weight: 600; color: var(--primary); white-space: nowrap; padding: 1rem;">${formatTime(times[i])}</td>`
+    }
+
+    return `
     <tr>
       <td>
         <div class="live-staff-cell">
@@ -107,16 +174,23 @@ async function loadLive() {
             <span class="live-meta">
               <span>${esc(r.pin)}</span>
               ${r.group ? `<span>&middot;</span><span style="display:flex;align-items:center;gap:0.25rem;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>${esc(r.group)}</span>` : ''}
+              <span>&middot;</span><span style="opacity:0.65;">${r.allTimes.length} punch${r.allTimes.length !== 1 ? 'es' : ''}</span>
             </span>
           </div>
         </div>
       </td>
-      <td class="live-in-time">
-        ${formatTime(r.time)}
-      </td>
+      ${punchCells}
     </tr>
-  `).join('')
+  `
+  }).join('')
 }
+
+// Wire filter controls — all client-side (no re-fetch needed)
+$('#live-group').addEventListener('change', renderLive)
+$('#live-search').addEventListener('input', renderLive)
+$('#live-sort').addEventListener('change', renderLive)
+$('#live-show').addEventListener('change', renderLive)
+$('#liveRefresh').addEventListener('click', loadLive)
 
 
 // ── devices ─────────────────────────────────────────────────
@@ -244,6 +318,31 @@ const COLS = {
   summary: [['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['days', 'Days'], ['hours', 'Total Hours'], ['late', 'Late'], ['minLate', 'Min Late'], ['early', 'Early Leave'], ['absent', 'Absent'], ['dayOff', 'Day Off'], ['leave', 'Leave'], ['excused', 'Excused']],
   punches: [['date', 'Date'], ['time', 'Time'], ['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['source', 'Source'], ['verify', 'Verify']],
 }
+let showAllPunches = false
+
+// Show/hide the toggle button based on the selected view
+$('#r-kind').addEventListener('change', () => {
+  const isDaily = $('#r-kind').value === 'daily'
+  $('#toggleAllPunches').style.display = isDaily ? '' : 'none'
+  if (!isDaily) { showAllPunches = false; updateToggleBtn() }
+})
+
+function updateToggleBtn() {
+  const btn = $('#toggleAllPunches')
+  btn.textContent = showAllPunches ? 'Hide All Punches' : 'Show All Punches'
+  btn.classList.toggle('primary', showAllPunches)
+}
+
+// Daily attendance is the default view — show toggle immediately on load
+$('#toggleAllPunches').style.display = ''
+updateToggleBtn()
+
+$('#toggleAllPunches').addEventListener('click', () => {
+  showAllPunches = !showAllPunches
+  updateToggleBtn()
+  runReport()
+})
+
 function qs() {
   const p = new URLSearchParams()
   for (const [k, id] of [['from', 'r-from'], ['to', 'r-to'], ['deviceId', 'r-device'], ['group', 'r-group'], ['pin', 'r-pin']]) if ($('#' + id).value) p.set(k, $('#' + id).value)
@@ -253,14 +352,29 @@ async function runReport() {
   const kind = $('#r-kind').value
   const url = kind === 'punches' ? '/api/punches?' + qs() : `/api/report/${kind}?` + qs()
   const rows = await api(url)
-  const cols = COLS[kind]
   const NUM_COLS = ['hours', 'days', 'late', 'minLate', 'minutesLate', 'early', 'punches', 'verify', 'absent', 'dayOff', 'leave', 'excused']
+
+  // For daily with allPunches toggle, dynamically expand individual punch columns
+  let cols = COLS[kind]
+  let allPunchCols = []
+  if (kind === 'daily' && showAllPunches) {
+    const maxP = rows.reduce((m, r) => Math.max(m, (r.allPunches || []).length), 0)
+    allPunchCols = Array.from({ length: maxP }, (_, i) => [`_punch${i}`, `Punch ${i + 1}`])
+    // Insert punch columns after Out
+    const outIdx = cols.findIndex(c => c[0] === 'out')
+    cols = [...cols.slice(0, outIdx + 1), ...allPunchCols, ...cols.slice(outIdx + 1)]
+  }
+
   $('#repTable thead').innerHTML = '<tr>' + cols.map(c => `<th${NUM_COLS.includes(c[0]) ? ' class="num"' : ''}>${c[1]}</th>`).join('') + '</tr>'
   const tb = $('#repTable tbody')
   if (!rows.length) { tb.innerHTML = `<tr><td colspan="${cols.length}"><div class="empty">No records for this filter.</div></td></tr>`; $('#repMeta').textContent = ''; return }
   tb.innerHTML = rows.map(r => {
     const row = { ...r }
     if (kind === 'punches') { row.date = r.time.slice(0, 10); row.time = r.time.slice(11, 19) }
+    // Inject individual punch values into the row object
+    if (kind === 'daily' && showAllPunches) {
+      (r.allPunches || []).forEach((t, i) => { row[`_punch${i}`] = t })
+    }
     return '<tr>' + cols.map(c => {
       let v = row[c[0]]
       if (c[0] === 'earlyLeave') return `<td class="num">${v ? '<span class="chip early">EARLY</span>' : ''}</td>`
@@ -268,7 +382,7 @@ async function runReport() {
       if (c[0] === 'status') return `<td><span class="chip status-${esc(v)}">${esc(STATUS_LABEL[v] || v || '')}</span></td>`
       if (c[0] === 'note') return `<td class="note-text">${esc(v || '')}</td>`
       if (c[0] === 'minutesLate' || c[0] === 'minLate') return `<td class="num">${v ? esc(v) : ''}</td>`
-      if (c[0] === 'in' || c[0] === 'out' || c[0] === 'time') return `<td>${esc(to12h(v))}</td>`
+      if (c[0] === 'in' || c[0] === 'out' || c[0] === 'time' || c[0].startsWith('_punch')) return `<td>${esc(to12h(v))}</td>`
       const num = NUM_COLS.includes(c[0])
       return `<td class="${num ? 'num' : ''}">${esc(v ?? '')}</td>`
     }).join('') + '</tr>'
@@ -277,7 +391,12 @@ async function runReport() {
 }
 $('#runReport').addEventListener('click', runReport)
 $('#r-group').addEventListener('change', runReport)
-$('#expReport').addEventListener('click', () => { window.location = `/api/export/${$('#r-kind').value}?` + qs() })
+$('#expReport').addEventListener('click', () => {
+  const q = qs()
+  const kind = $('#r-kind').value
+  const allP = (kind === 'daily' && showAllPunches) ? '&allPunches=1' : ''
+  window.location = `/api/export/${kind}?${q}${allP}`
+})
 
 // ── timesheet (monthly grid) ───────────────────────────────
 let tsData = null
@@ -501,7 +620,7 @@ function groupSelectHtml(selected) {
 // "link another PIN" input. Linking an already-existing staff PIN folds it in.
 function aliasEditHtml(pin, aliases) {
   const chips = (aliases || []).map(a => `<span class="chip alias-chip">${esc(a)}<button class="alias-x" data-rmalias="${esc(a)}" data-primary="${esc(pin)}" title="Unlink PIN">&times;</button></span>`).join(' ')
-  return `<div class="alias-edit">${chips}<input type="text" class="mono alias-add-input" placeholder="+PIN" style="width:54px" /><button class="btn small" data-addalias="${esc(pin)}">Link</button></div>`
+  return `<div class="alias-edit">${chips}<button class="btn small" data-addalias="${esc(pin)}" title="Link another device PIN to this person">+ PIN</button></div>`
 }
 
 function renderEmployees() {
@@ -576,10 +695,9 @@ $('#empTable').addEventListener('click', async e => {
   const addAliasBtn = e.target.closest('[data-addalias]')
   if (addAliasBtn) {
     const primary = addAliasBtn.dataset.addalias
-    const input = addAliasBtn.closest('.alias-edit').querySelector('.alias-add-input')
-    const aliasPin = (input.value || '').trim()
+    const aliasPin = (prompt('Link another device PIN to this person (their punches under it will roll up here):') || '').trim()
     if (!aliasPin) return
-    if (!confirm(`Link PIN ${aliasPin} to this person? Its punches will roll up here, and if ${aliasPin} is a separate staff record it will be merged in.`)) return
+    if (!confirm(`Link PIN ${aliasPin} to this person? If ${aliasPin} is a separate staff record it will be merged in.`)) return
     try { await api(`/api/employees/${encodeURIComponent(primary)}/alias`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aliasPin }) }); loadEmployees() }
     catch (err) { alert(err.message) }
     return
