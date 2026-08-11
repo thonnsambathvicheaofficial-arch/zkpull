@@ -79,6 +79,17 @@ create or replace view device_punch_counts as
 create or replace view pin_activity as
   select pin, count(*)::int as total, max(ts) as last_seen from punches group by pin;
 
+-- Cache of each device's enrolled user (PIN -> name), refreshed periodically by
+-- the puller. Lets the "suggest staff from devices" tool show names INSTANTLY
+-- instead of dialing the devices live on every request (slow over WAN, and it
+-- times out on Vercel's 60s function limit).
+create table if not exists device_users (
+  pin        text primary key,
+  name       text,
+  devices    text,
+  updated_at timestamptz not null default now()
+);
+
 -- App login accounts (separate from `employees`, which is attendance-only data).
 -- Password is bcrypt-hashed — never store plaintext once this lives in the cloud.
 create table if not exists login_users (

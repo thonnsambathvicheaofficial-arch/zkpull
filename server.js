@@ -162,8 +162,15 @@ app.delete('/api/devices/:id', h(async (req, res) => { await store.devices.remov
 app.get('/api/cron/pull', h(async (req, res) => {
   const auth = req.headers.authorization || ''
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) return res.status(401).json({ error: 'Unauthorized' })
-  const { pullAll } = require('./lib/zkpull')
+  const { pullAll, refreshDeviceUsers } = require('./lib/zkpull')
   const result = await pullAll({ full: req.query.full === '1' })
+  // Keep the device-name cache fresh for the staff-suggestion tool — gated to
+  // ~hourly, time-capped, and wrapped so it can NEVER break the punch pull.
+  try {
+    if (await store.deviceUsers.ageMinutes() > 45) {
+      await Promise.race([refreshDeviceUsers(), new Promise((_, rej) => setTimeout(() => rej(new Error('cap')), 25000))])
+    }
+  } catch { /* best-effort; cache stays as-is */ }
   res.json(result)
 }))
 
@@ -318,14 +325,11 @@ app.get('/api/staff-suggestions', h(async (req, res) => {
   const existing = new Set(Object.keys(await store.employees.get()))   // already-mapped PINs
   const activity = await store.punches.pinActivity()
   const active = activity.filter(a => !existing.has(a.pin) && String(a.lastSeen).slice(0, 10) >= cutoff)
-  // Device names are best-effort enrichment. The candidate list above already
-  // stands on its own from the DB, so the live device dial is HARD-CAPPED: if the
-  // devices are busy (e.g. the 5-min cron is mid-pull, which holds the device's
-  // single connection) we return candidates with blank names rather than hang —
-  // critical since this also runs on Vercel with a 60s function limit.
-  const withCap = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r({}), ms))])
+  // Device names come from the device_users cache (refreshed by the puller), so
+  // this responds instantly — no live device dial that stalls on Vercel's 60s
+  // limit and returns blank names.
   let names = {}
-  try { names = await withCap(require('./lib/zkpull').deviceUsers(), 18000) } catch { names = {} }
+  try { names = await store.deviceUsers.getCache() } catch { names = {} }
   const candidates = active.map(a => {
     const hit = names[a.pin]
     // A device "name" equal to the PIN means it was enrolled with no real name.
