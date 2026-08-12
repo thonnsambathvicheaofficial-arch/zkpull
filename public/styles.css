@@ -544,3 +544,80 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
 .live-name{font-weight:600;color:var(--ink)}
 .live-meta{font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:.5rem}
 .live-in-time{text-align:right;font-weight:700;color:var(--brand);font-size:15px}
+
+/* ── Wipe confirmation modal ─────────────────────────────── */
+.wipe-modal-box{
+  max-width:480px;width:100%;
+  animation:wipe-modal-in .22s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes wipe-modal-in{
+  from{opacity:0;transform:scale(.93) translateY(-8px)}
+  to{opacity:1;transform:scale(1) translateY(0)}
+}
+
+/* Red icon badge */
+.wipe-modal-icon{
+  width:56px;height:56px;border-radius:16px;
+  background:var(--bad-bg);border:1.5px solid var(--bad-line);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:16px;color:var(--bad);
+}
+.wipe-modal-title{
+  font-size:18px;font-weight:750;color:var(--ink);margin:0 0 4px;
+}
+.wipe-modal-device{
+  font-size:13px;color:var(--muted);margin:0 0 20px;
+}
+.wipe-modal-device strong{color:var(--ink);font-weight:600;}
+
+/* Step list */
+.wipe-modal-steps{
+  display:flex;flex-direction:column;gap:12px;margin-bottom:20px;
+}
+.wipe-step{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:12px 14px;border-radius:var(--radius-xs);
+  background:var(--surface-2);border:1px solid var(--line-soft);
+}
+.wipe-step-num{
+  width:24px;height:24px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;
+  background:var(--brand-tint);color:var(--brand);
+}
+.wipe-step-num.danger{background:var(--bad-bg);color:var(--bad);}
+.wipe-step > div{display:flex;flex-direction:column;gap:2px}
+.wipe-step strong{font-size:13px;font-weight:600;color:var(--ink)}
+.wipe-step span{font-size:12px;color:var(--muted)}
+
+/* Info note */
+.wipe-modal-note{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:10px 14px;border-radius:var(--radius-xs);
+  background:var(--warn-bg);border:1px solid var(--warn-line);
+  font-size:12px;color:var(--warn);margin-bottom:20px;line-height:1.5;
+}
+.wipe-modal-note svg{flex-shrink:0;margin-top:1px;}
+
+/* Checkbox gate */
+.wipe-modal-confirm-row{
+  padding:12px 14px;border-radius:var(--radius-xs);
+  background:var(--bad-bg);border:1.5px solid var(--bad-line);
+  margin-bottom:20px;
+}
+.wipe-checkbox-label{
+  display:flex;align-items:flex-start;gap:10px;
+  font-size:13px;font-weight:500;color:var(--bad);cursor:pointer;line-height:1.4;
+}
+.wipe-checkbox-label input[type=checkbox]{
+  margin-top:2px;width:16px;height:16px;flex-shrink:0;
+  accent-color:var(--bad);cursor:pointer;
+}
+
+/* Actions */
+.wipe-modal-actions{display:flex;gap:10px;justify-content:flex-end;}
+.btn.danger{
+  background:var(--bad);color:#fff;border-color:transparent;
+}
+.btn.danger:hover:not(:disabled){background:var(--crest-red-dark);}
+.btn.danger:disabled{opacity:.4;cursor:not-allowed;}

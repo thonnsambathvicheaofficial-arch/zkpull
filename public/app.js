@@ -306,29 +306,62 @@ $('#devTable').addEventListener('click', async e => {
     const name = wipeBtn.dataset.name
     const row = wipeBtn.closest('tr')
     const syncCell = row && row.querySelector('.sync-cell')
-
-    // Two-step destructive confirmation
-    if (!confirm(`⚠️ Wipe ALL attendance logs from "${name}"?\n\nThis will:\n  1. Force a full cloud sync to preserve all data\n  2. Permanently delete all logs from the physical machine\n\nYour cloud database will keep all history. The device log count will reset to 0.\n\nContinue?`)) return
-    if (!confirm(`Final confirmation: physically wipe "${name}"?\n\nThis cannot be undone on the machine.`)) return
-
-    wipeBtn.disabled = true
-    wipeBtn.textContent = '⏳ Syncing…'
-    if (syncCell) syncCell.innerHTML = '<span class="chip sync-pulling">Syncing before wipe…</span>'
-
-    try {
-      const result = await api(`/api/devices/${id}/wipe`, { method: 'POST' })
-      if (syncCell) syncCell.innerHTML = `<span class="chip sync-ok" title="Wiped successfully. ${result.pulled ?? 0} new records synced first.">Wiped · just now</span>`
-      alert(`✅ Done! Synced ${result.pulled ?? 0} new records to cloud, then wiped "${name}" successfully.`)
-      setTimeout(loadDevices, 800)
-    } catch (err) {
-      if (syncCell) syncCell.innerHTML = `<span class="chip sync-error">Wipe failed</span>`
-      alert(`❌ Wipe failed: ${err.message}`)
-      wipeBtn.disabled = false
-      wipeBtn.textContent = '🗑 Wipe Logs'
-    }
+    showWipeModal(name, async () => {
+      wipeBtn.disabled = true
+      wipeBtn.textContent = '⏳ Syncing…'
+      if (syncCell) syncCell.innerHTML = '<span class="chip sync-pulling">Syncing before wipe…</span>'
+      try {
+        const result = await api(`/api/devices/${id}/wipe`, { method: 'POST' })
+        if (syncCell) syncCell.innerHTML = `<span class="chip sync-ok" title="Wiped successfully. ${result.pulled ?? 0} new records synced first.">Wiped · just now</span>`
+        setTimeout(loadDevices, 800)
+      } catch (err) {
+        if (syncCell) syncCell.innerHTML = `<span class="chip sync-error">Wipe failed</span>`
+        alert(`❌ Wipe failed: ${err.message}`)
+        wipeBtn.disabled = false
+        wipeBtn.textContent = '🗑 Wipe Logs'
+      }
+    })
     return
   }
 })
+
+// ── Wipe confirmation modal ─────────────────────────────────
+function showWipeModal(deviceName, onConfirm) {
+  const modal = $('#wipeModal')
+  const confirmBtn = $('#wipeConfirmBtn')
+  const cancelBtn = $('#wipeCancelBtn')
+  const check = $('#wipeConfirmCheck')
+  const deviceLabel = modal.querySelector('.wipe-modal-device')
+
+  // Reset state
+  check.checked = false
+  confirmBtn.disabled = true
+  deviceLabel.innerHTML = `Wiping logs from <strong>${esc(deviceName)}</strong>`
+
+  modal.classList.remove('hidden')
+
+  // Gate the confirm button on the checkbox
+  function onCheck() { confirmBtn.disabled = !check.checked }
+  check.addEventListener('change', onCheck)
+
+  function cleanup() {
+    modal.classList.add('hidden')
+    check.removeEventListener('change', onCheck)
+    confirmBtn.removeEventListener('click', onConfirmClick)
+    cancelBtn.removeEventListener('click', onCancel)
+    modal.removeEventListener('click', onOverlayClick)
+  }
+
+  function onConfirmClick() { cleanup(); onConfirm() }
+  function onCancel() { cleanup() }
+  function onOverlayClick(e) { if (e.target === modal) cleanup() }
+
+  confirmBtn.addEventListener('click', onConfirmClick)
+  cancelBtn.addEventListener('click', onCancel)
+  modal.addEventListener('click', onOverlayClick)
+}
+
+
 
 $('#showAdd').addEventListener('click', () => $('#addForm').classList.toggle('hidden'))
 $('#cancelAdd').addEventListener('click', () => $('#addForm').classList.add('hidden'))

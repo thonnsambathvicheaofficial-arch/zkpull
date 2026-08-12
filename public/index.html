@@ -273,6 +273,48 @@
   <!-- Suggest-staff-from-devices review tool — populated/toggled by app.js -->
   <div id="suggestModal" class="modal-overlay hidden"></div>
 
+  <!-- Wipe confirmation modal — two-step destructive action -->
+  <div id="wipeModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="wipeModalTitle">
+    <div class="modal-box wipe-modal-box">
+      <div class="wipe-modal-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4h6v2"></path></svg>
+      </div>
+      <h3 id="wipeModalTitle" class="wipe-modal-title">Wipe Attendance Logs?</h3>
+      <p class="wipe-modal-device"></p>
+      <div class="wipe-modal-steps">
+        <div class="wipe-step">
+          <span class="wipe-step-num">1</span>
+          <div>
+            <strong>Force full cloud sync</strong>
+            <span>All punch records are backed up to the database first</span>
+          </div>
+        </div>
+        <div class="wipe-step">
+          <span class="wipe-step-num danger">2</span>
+          <div>
+            <strong>Permanently delete logs from the physical machine</strong>
+            <span>The device log count will reset to 0</span>
+          </div>
+        </div>
+      </div>
+      <div class="wipe-modal-note">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        Your cloud database keeps all historical data. Reports remain fully accessible.
+      </div>
+      <div class="wipe-modal-confirm-row" id="wipeConfirmRow">
+        <label class="wipe-checkbox-label">
+          <input type="checkbox" id="wipeConfirmCheck" />
+          I understand this cannot be undone on the physical machine
+        </label>
+      </div>
+      <div class="wipe-modal-actions">
+        <button id="wipeCancelBtn" class="btn ghost">Cancel</button>
+        <button id="wipeConfirmBtn" class="btn danger" disabled>🗑 Wipe Device Logs</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
+
 </body>
 </html>
