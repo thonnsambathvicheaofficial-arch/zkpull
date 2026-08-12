@@ -248,7 +248,10 @@ async function loadDevices() {
       <td><span class="chip ${d.type === 'pull' ? 'pull' : d.type === 'adms' ? 'adms' : 'import'}">${d.type === 'pull' ? 'TCP Pull' : d.type === 'adms' ? 'ADMS' : 'Imported'}</span></td>
       <td class="mono">${d.ip ? esc(d.ip) + ':' + d.port : '—'}</td>
       <td class="mono">${esc(d.serial || '—')}</td>
-      <td class="num">${d.punches.toLocaleString()}</td>
+      <td class="num" style="color:var(--ok);font-weight:600;display:flex;align-items:center;gap:4px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+        ${d.punches.toLocaleString()} saved
+      </td>
       <td class="sync-cell">${syncCellHtml(d)}</td>
       <td class="actions">
         ${canPull ? `<button class="btn small pull-btn" data-pull="${d.id}" title="Pull now from ${esc(d.publicHost)}:${d.publicPort || 4370}">⬇ Pull</button>` : ''}
