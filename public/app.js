@@ -252,7 +252,7 @@ async function loadDevices() {
       <td class="sync-cell">${syncCellHtml(d)}</td>
       <td class="actions">
         ${canPull ? `<button class="btn small pull-btn" data-pull="${d.id}" title="Pull now from ${esc(d.publicHost)}:${d.publicPort || 4370}">⬇ Pull</button>` : ''}
-        ${canPull ? `<button class="btn small danger wipe-btn" data-wipe="${d.id}" data-name="${esc(d.name)}">🗑 Wipe Logs</button>` : ''}
+        ${canPull ? `<button class="btn small danger wipe-btn" data-wipe="${d.id}" data-name="${esc(d.name)}" data-punches="${d.punches || 0}">🗑 Wipe Logs</button>` : ''}
         <button class="btn small danger" data-del="${d.id}">Delete</button>
       </td></tr>`
   }).join('')
@@ -304,9 +304,10 @@ $('#devTable').addEventListener('click', async e => {
   if (wipeBtn) {
     const id = wipeBtn.dataset.wipe
     const name = wipeBtn.dataset.name
+    const punches = Number(wipeBtn.dataset.punches || 0)
     const row = wipeBtn.closest('tr')
     const syncCell = row && row.querySelector('.sync-cell')
-    showWipeModal(name, async () => {
+    showWipeModal(name, punches, async () => {
       wipeBtn.disabled = true
       wipeBtn.textContent = '⏳ Syncing…'
       if (syncCell) syncCell.innerHTML = '<span class="chip sync-pulling">Syncing before wipe…</span>'
@@ -326,17 +327,22 @@ $('#devTable').addEventListener('click', async e => {
 })
 
 // ── Wipe confirmation modal ─────────────────────────────────
-function showWipeModal(deviceName, onConfirm) {
+function showWipeModal(deviceName, backupCount, onConfirm) {
   const modal = $('#wipeModal')
   const confirmBtn = $('#wipeConfirmBtn')
   const cancelBtn = $('#wipeCancelBtn')
   const check = $('#wipeConfirmCheck')
   const deviceLabel = modal.querySelector('.wipe-modal-device')
+  const backupSpan = modal.querySelector('#wipeModalBackupCount')
 
   // Reset state
   check.checked = false
   confirmBtn.disabled = true
   deviceLabel.innerHTML = `Wiping logs from <strong>${esc(deviceName)}</strong>`
+  
+  if (backupSpan) {
+    backupSpan.innerHTML = `<strong>${backupCount.toLocaleString()} records</strong> from this device are safely stored in your cloud database. `
+  }
 
   modal.classList.remove('hidden')
 
