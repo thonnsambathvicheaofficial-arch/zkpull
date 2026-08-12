@@ -869,9 +869,12 @@ $('#saveSettings').addEventListener('click', async () => {
 
 // ── init ────────────────────────────────────────────────────
 function defaultDates() {
-  const now = new Date(), first = new Date(now.getFullYear(), now.getMonth(), 1)
+  const now = new Date()
   const iso = d => d.toLocaleDateString('en-CA')
-  $('#r-from').value = iso(first); $('#r-to').value = iso(now)
+  // Default report range starts from Aug 1 2026 (machines wiped before this date).
+  // Older data is preserved in the DB and accessible by manually changing the date.
+  $('#r-from').value = '2026-08-01'
+  $('#r-to').value = iso(now)
   $('#ts-month').value = iso(now).slice(0, 7)
 }
 // ── users (login accounts) ─────────────────────────────────
