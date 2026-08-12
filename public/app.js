@@ -252,6 +252,7 @@ async function loadDevices() {
       <td class="sync-cell">${syncCellHtml(d)}</td>
       <td class="actions">
         ${canPull ? `<button class="btn small pull-btn" data-pull="${d.id}" title="Pull now from ${esc(d.publicHost)}:${d.publicPort || 4370}">⬇ Pull</button>` : ''}
+        ${canPull ? `<button class="btn small danger wipe-btn" data-wipe="${d.id}" data-name="${esc(d.name)}">🗑 Wipe Logs</button>` : ''}
         <button class="btn small danger" data-del="${d.id}">Delete</button>
       </td></tr>`
   }).join('')
@@ -296,6 +297,36 @@ $('#devTable').addEventListener('click', async e => {
       pullBtn.disabled = false
       pullBtn.innerHTML = '⬇ Pull'
     }
+    return
+  }
+
+  const wipeBtn = e.target.closest('[data-wipe]')
+  if (wipeBtn) {
+    const id = wipeBtn.dataset.wipe
+    const name = wipeBtn.dataset.name
+    const row = wipeBtn.closest('tr')
+    const syncCell = row && row.querySelector('.sync-cell')
+
+    // Two-step destructive confirmation
+    if (!confirm(`⚠️ Wipe ALL attendance logs from "${name}"?\n\nThis will:\n  1. Force a full cloud sync to preserve all data\n  2. Permanently delete all logs from the physical machine\n\nYour cloud database will keep all history. The device log count will reset to 0.\n\nContinue?`)) return
+    if (!confirm(`Final confirmation: physically wipe "${name}"?\n\nThis cannot be undone on the machine.`)) return
+
+    wipeBtn.disabled = true
+    wipeBtn.textContent = '⏳ Syncing…'
+    if (syncCell) syncCell.innerHTML = '<span class="chip sync-pulling">Syncing before wipe…</span>'
+
+    try {
+      const result = await api(`/api/devices/${id}/wipe`, { method: 'POST' })
+      if (syncCell) syncCell.innerHTML = `<span class="chip sync-ok" title="Wiped successfully. ${result.pulled ?? 0} new records synced first.">Wiped · just now</span>`
+      alert(`✅ Done! Synced ${result.pulled ?? 0} new records to cloud, then wiped "${name}" successfully.`)
+      setTimeout(loadDevices, 800)
+    } catch (err) {
+      if (syncCell) syncCell.innerHTML = `<span class="chip sync-error">Wipe failed</span>`
+      alert(`❌ Wipe failed: ${err.message}`)
+      wipeBtn.disabled = false
+      wipeBtn.textContent = '🗑 Wipe Logs'
+    }
+    return
   }
 })
 

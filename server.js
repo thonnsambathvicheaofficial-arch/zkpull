@@ -207,6 +207,37 @@ app.post('/api/devices/:id/pull', h(async (req, res) => {
   res.json(result)
 }))
 
+// ── API: wipe device ──────────────────────────────────────────
+// Safely zeroes out the attendance log on the physical hardware.
+// Forces a complete sync first to ensure no data is lost.
+app.post('/api/devices/:id/wipe', h(async (req, res) => {
+  const dev = await store.devices.get(req.params.id)
+  if (!dev) return res.status(404).json({ error: 'Device not found.' })
+  if (dev.type !== 'pull') return res.status(400).json({ error: 'Only TCP-pull devices can be wiped directly.' })
+
+  const sb = require('./lib/supabase')
+  const { data: raw, error } = await sb.from('devices').select('*').eq('id', req.params.id).maybeSingle()
+  if (error) return res.status(500).json({ error: error.message })
+  if (!raw || !raw.public_host) return res.status(400).json({ error: 'This device has no public_host configured.' })
+
+  const { pullOne, wipeOne } = require('./lib/zkpull')
+  const ZKLib = require('node-zklib')
+
+  // 1. Force a full pull to ensure data safety
+  const pullResult = await pullOne(ZKLib, raw, { full: true })
+  if (!pullResult.ok) {
+    return res.status(500).json({ error: 'Failed to sync device data before wiping. Wipe aborted for safety.', details: pullResult.error })
+  }
+
+  // 2. Wipe the device
+  const wipeResult = await wipeOne(ZKLib, raw)
+  if (!wipeResult.ok) {
+    return res.status(500).json({ error: 'Device sync succeeded, but wipe failed.', details: wipeResult.error })
+  }
+
+  res.json({ ok: true, pulled: pullResult.pushed, message: 'Device logs wiped successfully.' })
+}))
+
 // ── API: reports ────────────────────────────────────────────
 app.get('/api/report/daily', h(async (req, res) => res.json((await reportData(req.query)).daily)))
 app.get('/api/report/summary', h(async (req, res) => res.json((await reportData(req.query)).summary)))
