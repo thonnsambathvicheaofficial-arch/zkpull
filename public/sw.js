@@ -1,4 +1,4 @@
-const CACHE_NAME = 'songfa-v1'
+const CACHE_NAME = 'songfa-v3'
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
