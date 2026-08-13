@@ -14,12 +14,12 @@
   --warn:#b06a12; --warn-bg:#fcf3e2; --warn-line:#f0d9a8;
   --bad:#d92d20; --bad-bg:#fdecec; --bad-line:#f6cdcb;
   --purple:#7c3aed; --purple-bg:#f3ecff;
-  --radius:16px; --radius-sm:11px; --radius-xs:8px;
-  --shadow-sm:0 1px 2px rgba(16,24,40,.05),0 1px 2px rgba(16,24,40,.04);
-  --shadow:0 6px 16px -6px rgba(16,24,40,.14),0 2px 6px -2px rgba(16,24,40,.06);
-  --shadow-lg:0 18px 40px -12px rgba(16,24,40,.22);
+  --radius:20px; --radius-sm:14px; --radius-xs:10px;
+  --shadow-sm:0 2px 4px rgba(16,24,40,.04),0 4px 12px rgba(16,24,40,.03);
+  --shadow:0 8px 24px -8px rgba(16,24,40,.12),0 4px 8px -4px rgba(16,24,40,.06);
+  --shadow-lg:0 24px 48px -12px rgba(16,24,40,.18);
   --ring:0 0 0 3px rgba(12,77,162,.20);
-  --font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font:'Inter',ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;
 }
 *{box-sizing:border-box}
@@ -62,8 +62,14 @@ h2{font-size:19px;font-weight:700;color:var(--ink);text-wrap:balance}
   padding:8px 13px;border-radius:11px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;
   display:inline-flex;align-items:center;gap:7px;transition:background .15s,border-color .15s}
 .logout:hover{background:rgba(255,255,255,.16);color:#fff}
-.logout #who{color:#9fb0d6;font-weight:500}
 .logout #who:not(:empty)::after{content:"\00B7";margin-left:7px;color:#5b6c92}
+.theme-toggle{
+  border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#cdd8f0;
+  padding:8px;border-radius:11px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  transition:background .15s,border-color .15s,color .15s;
+}
+.theme-toggle:hover{background:rgba(255,255,255,.16);color:#fff}
+
 
 /* ΓöÇΓöÇ tabs ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .tabs{
@@ -77,12 +83,9 @@ h2{font-size:19px;font-weight:700;color:var(--ink);text-wrap:balance}
   border:0;background:none;padding:13px 14px 12px;font-size:13.5px;font-weight:600;
   color:var(--muted);cursor:pointer;position:relative;white-space:nowrap;transition:color .15s;
 }
-.tabs button:hover{color:var(--ink)}
-.tabs button.active{color:var(--brand-strong)}
-.tabs button.active::after{
-  content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2.5px;border-radius:3px;
-  background:linear-gradient(90deg,var(--brand),var(--brand-lighter));
-}
+.tabs button:hover{color:var(--ink);background:color-mix(in srgb,var(--surface-3) 40%,transparent);border-radius:8px;}
+.tabs button.active{color:var(--brand-strong);background:var(--brand-tint);border-radius:8px;}
+.tabs button.active::after{display:none;}
 .tabs button:focus-visible{outline:2px solid var(--brand);outline-offset:-4px;border-radius:6px}
 
 main{max-width:1120px;margin:0 auto;padding:26px 18px 72px;animation:rise .28s ease}
@@ -149,8 +152,7 @@ thead th{
 tbody td{padding:11px 14px;border-bottom:1px solid var(--line-soft);white-space:nowrap;color:var(--ink-soft)}
 tbody td b{color:var(--ink);font-weight:650}
 tbody tr:last-child td{border-bottom:0}
-tbody tr{transition:background .12s}
-tbody tr:hover{background:var(--surface-2)}
+tbody tr:hover{background:var(--surface-2);transform:scale(1.002);box-shadow:inset 3px 0 0 0 var(--brand-lighter);}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .mono{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:-.01em}
 
@@ -396,18 +398,20 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
   /* 6. Table wrapper: full-bleed, horizontal scroll for data tables */
   .tablewrap{border-radius:0;border-left:none;border-right:none;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0}
 
-  /* 7. Filters: full-width stacked column layout */
+  /* 7. Filters: full-width stacked column layout on mobile, but keep Actions pinned */
   .filters{
-    display:flex;flex-direction:column;
+    display:flex;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
     gap:10px;padding:14px 16px;
     border-radius:0;border-left:none;border-right:none;
+    -webkit-overflow-scrolling:touch;
   }
-  .filters label{width:100%;display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-  .filters label select,.filters label input{width:100%;font-size:15px;padding:10px 12px}
-  .filters .actions{width:100%;display:flex;gap:8px}
-  .filters .actions .btn{flex:1;justify-content:center;padding:11px 8px;font-size:14px}
+  .filters::-webkit-scrollbar{display:none}
+  .filters label{flex:0 0 auto;display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .filters label select,.filters label input{font-size:14px;padding:8px 10px;min-width:140px;}
+  .filters .actions{position:sticky;right:0;background:var(--surface);padding-left:8px;display:flex;gap:8px;box-shadow:-8px 0 12px var(--surface);}
+  .filters .actions .btn{padding:9px 12px;font-size:14px;white-space:nowrap;}
   .month-nav{display:flex;align-items:center;gap:6px}
-  .month-nav input{flex:1}
+  .month-nav input{min-width:120px;}
 
   /* 8. DEVICE table → stacked card rows */
   #devTable thead{display:none}
@@ -471,10 +475,32 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
     background:var(--surface-2);z-index:3;
   }
 
-  /* 12. Live activity: tighter padding, larger tap areas */
-  .live-table td{padding:10px 16px}
-  .live-avatar{width:40px;height:40px;font-size:13px}
-  .live-name{font-size:15px}
+  /* 12. Live activity & Reports: Mobile card rows */
+  .live-table thead, #repTable thead {display:none}
+  .live-table tbody tr, #repTable tbody tr {
+    display:flex;flex-direction:column;
+    padding:14px 16px;
+    border-bottom:1px solid var(--line);
+    gap:8px;
+  }
+  .live-table td, #repTable td {display:flex;align-items:center;justify-content:space-between;padding:0;border:none;font-size:14px;}
+  .live-table td:first-child, #repTable td:first-child {align-items:flex-start;}
+  
+  /* Live specifics */
+  .live-table td.live-in-time::before {
+    content:"Punch Time"; font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;
+  }
+  .live-avatar{width:44px;height:44px;font-size:14px}
+  .live-name{font-size:16px}
+  
+  /* Report specifics */
+  #repTable td[data-label]::before{
+    content:attr(data-label);
+    font-size:11px;font-weight:600;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.04em;
+    min-width:60px;flex-shrink:0;
+  }
+  #repTable td:first-child{font-size:16px;font-weight:700;color:var(--ink)}
 
   /* 13. Buttons: full-width where they are the only action */
   .btn{padding:10px 14px;font-size:13.5px}
@@ -489,7 +515,22 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
     animation:slide-up .25s cubic-bezier(.32,.72,0,1);
   }
   @keyframes slide-up{from{transform:translateY(100%)}to{transform:none}}
-}
+
+  /* 15. Timesheet stat cards horizontal scroll */
+  .ts-stats {
+    display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
+    gap:12px;padding:0 16px 16px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .ts-stats::-webkit-scrollbar{display:none}
+  .ts-stat {flex:0 0 140px;margin-bottom:0;}
+  
+  /* 16. Pull to refresh note */
+  .pull-to-refresh {
+    text-align:center;font-size:12px;color:var(--muted);padding:8px;
+    display:flex;justify-content:center;align-items:center;gap:6px;
+  }
+  }
 
 @media (max-width:400px){
   .tabs button{padding:8px 2px 9px}
@@ -521,7 +562,7 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
 :root[data-theme="dark"]{
   --bg:#0b1120;--surface:#151d2e;--surface-2:#1b2537;--surface-3:#212c41;
   --ink:#e8edf6;--ink-soft:#c2ccdd;--muted:#8593ab;--faint:#5f6d86;
-  --line:#28324a;--line-soft:#212b40;
+  --line:#28324a;--line-soft:#212b40;--brand-tint:#16233f;
   --ok-bg:#0f2e26;--ok-line:#1c4d3f;--warn-bg:#33260f;--warn-line:#5a441a;--bad-bg:#3a1d1d;--bad-line:#5e2c2c;--purple-bg:#2a1f45;
   --shadow-sm:0 1px 2px rgba(0,0,0,.4);--ring:0 0 0 3px rgba(70,150,230,.35);
 }

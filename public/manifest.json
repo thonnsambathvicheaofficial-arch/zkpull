@@ -1,0 +1,16 @@
+{
+  "name": "Song Fa Water Tanks Attendance",
+  "short_name": "Song Fa Attendance",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eaeef5",
+  "theme_color": "#0c4da2",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

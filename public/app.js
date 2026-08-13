@@ -451,14 +451,15 @@ async function runReport() {
     }
     return '<tr>' + cols.map(c => {
       let v = row[c[0]]
-      if (c[0] === 'earlyLeave') return `<td class="num">${v ? '<span class="chip early">EARLY</span>' : ''}</td>`
-      if (c[0] === 'group') return `<td>${groupChip(v)}</td>`
-      if (c[0] === 'status') return `<td><span class="chip status-${esc(v)}">${esc(STATUS_LABEL[v] || v || '')}</span></td>`
-      if (c[0] === 'note') return `<td class="note-text">${esc(v || '')}</td>`
-      if (c[0] === 'minutesLate' || c[0] === 'minLate') return `<td class="num">${v ? esc(v) : ''}</td>`
-      if (c[0] === 'in' || c[0] === 'out' || c[0] === 'time' || c[0].startsWith('_punch')) return `<td>${esc(to12h(v))}</td>`
+      const labelAttr = `data-label="${esc(c[1])}"`
+      if (c[0] === 'earlyLeave') return `<td class="num" ${labelAttr}>${v ? '<span class="chip early">EARLY</span>' : ''}</td>`
+      if (c[0] === 'group') return `<td ${labelAttr}>${groupChip(v)}</td>`
+      if (c[0] === 'status') return `<td ${labelAttr}><span class="chip status-${esc(v)}">${esc(STATUS_LABEL[v] || v || '')}</span></td>`
+      if (c[0] === 'note') return `<td class="note-text" ${labelAttr}>${esc(v || '')}</td>`
+      if (c[0] === 'minutesLate' || c[0] === 'minLate') return `<td class="num" ${labelAttr}>${v ? esc(v) : ''}</td>`
+      if (c[0] === 'in' || c[0] === 'out' || c[0] === 'time' || c[0].startsWith('_punch')) return `<td ${labelAttr}>${esc(to12h(v))}</td>`
       const num = NUM_COLS.includes(c[0])
-      return `<td class="${num ? 'num' : ''}">${esc(v ?? '')}</td>`
+      return `<td class="${num ? 'num' : ''}" ${labelAttr}>${esc(v ?? '')}</td>`
     }).join('') + '</tr>'
   }).join('')
   $('#repMeta').textContent = `${rows.length} row${rows.length !== 1 ? 's' : ''}`
@@ -960,6 +961,51 @@ $('#userTable').addEventListener('click', async e => {
     }
   } catch (err) { alert(err.message) }
 })
+
+// ── theme toggle ─────────────────────────────────────────────
+const themeToggleBtn = document.getElementById('themeToggle');
+const moonIcon = document.querySelector('.moon-icon');
+const sunIcon = document.querySelector('.sun-icon');
+
+function updateThemeUI(theme) {
+  if (theme === 'dark') {
+    moonIcon.style.display = 'none';
+    sunIcon.style.display = 'block';
+  } else {
+    moonIcon.style.display = 'block';
+    sunIcon.style.display = 'none';
+  }
+}
+
+// Initial state setup based on localStorage or system preference
+const currentTheme = localStorage.getItem('theme') ? localStorage.getItem('theme') : null;
+if (currentTheme) {
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    updateThemeUI(currentTheme);
+} else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    updateThemeUI('dark');
+} else {
+    updateThemeUI('light');
+}
+
+themeToggleBtn.addEventListener('click', () => {
+    let theme = document.documentElement.getAttribute('data-theme');
+    
+    // If not explicitly set, determine based on system preference
+    if (!theme) {
+       theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    
+    if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        localStorage.setItem('theme', 'light');
+        updateThemeUI('light');
+    } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+        updateThemeUI('dark');
+    }
+});
 
 // ── auth: show user + logout ───────────────────────────────
 $('#logout').addEventListener('click', async () => { try { await fetch('/api/logout', { method: 'POST' }) } catch {} location.href = '/login' })
