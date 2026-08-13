@@ -451,15 +451,14 @@ async function runReport() {
     }
     return '<tr>' + cols.map(c => {
       let v = row[c[0]]
-      const labelAttr = `data-label="${esc(c[1])}"`
-      if (c[0] === 'earlyLeave') return `<td class="num" ${labelAttr}>${v ? '<span class="chip early">EARLY</span>' : ''}</td>`
-      if (c[0] === 'group') return `<td ${labelAttr}>${groupChip(v)}</td>`
-      if (c[0] === 'status') return `<td ${labelAttr}><span class="chip status-${esc(v)}">${esc(STATUS_LABEL[v] || v || '')}</span></td>`
-      if (c[0] === 'note') return `<td class="note-text" ${labelAttr}>${esc(v || '')}</td>`
-      if (c[0] === 'minutesLate' || c[0] === 'minLate') return `<td class="num" ${labelAttr}>${v ? esc(v) : ''}</td>`
-      if (c[0] === 'in' || c[0] === 'out' || c[0] === 'time' || c[0].startsWith('_punch')) return `<td ${labelAttr}>${esc(to12h(v))}</td>`
+      if (c[0] === 'earlyLeave') return `<td class="num">${v ? '<span class="chip early">EARLY</span>' : ''}</td>`
+      if (c[0] === 'group') return `<td>${groupChip(v)}</td>`
+      if (c[0] === 'status') return `<td><span class="chip status-${esc(v)}">${esc(STATUS_LABEL[v] || v || '')}</span></td>`
+      if (c[0] === 'note') return `<td class="note-text">${esc(v || '')}</td>`
+      if (c[0] === 'minutesLate' || c[0] === 'minLate') return `<td class="num">${v ? esc(v) : ''}</td>`
+      if (c[0] === 'in' || c[0] === 'out' || c[0] === 'time' || c[0].startsWith('_punch')) return `<td>${esc(to12h(v))}</td>`
       const num = NUM_COLS.includes(c[0])
-      return `<td class="${num ? 'num' : ''}" ${labelAttr}>${esc(v ?? '')}</td>`
+      return `<td class="${num ? 'num' : ''}">${esc(v ?? '')}</td>`
     }).join('') + '</tr>'
   }).join('')
   $('#repMeta').textContent = `${rows.length} row${rows.length !== 1 ? 's' : ''}`

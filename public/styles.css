@@ -413,40 +413,25 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
   .month-nav{display:flex;align-items:center;gap:6px}
   .month-nav input{min-width:120px;}
 
-  /* 8. DEVICE table → stacked card rows */
-  #devTable thead{display:none}
-  #devTable tbody tr{
-    display:flex;flex-direction:column;
-    padding:14px 16px 12px;
-    border-bottom:1px solid var(--line);
-    gap:6px;
+  /* 8. Sticky First Column for ALL Tables on Mobile */
+  /* Ensures we can scroll horizontally through dense data without losing track of row context (Name/PIN) */
+  #devTable, #empTable, #repTable, .live-table, #userTable { min-width: 600px; }
+  
+  #devTable th:first-child, #devTable td:first-child,
+  #empTable th:first-child, #empTable td:first-child,
+  #repTable th:first-child, #repTable td:first-child,
+  .live-table th:first-child, .live-table td:first-child,
+  #userTable th:first-child, #userTable td:first-child {
+    position: sticky; left: 0; z-index: 2;
+    background: var(--surface);
+    box-shadow: 2px 0 6px -2px rgba(16,24,40,.08);
   }
-  #devTable td{display:flex;align-items:center;justify-content:space-between;padding:0;border:none;font-size:13px;line-height:1.4}
-  #devTable td:first-child{font-size:16px;font-weight:700;color:var(--ink)}
-  #devTable td:last-child{margin-top:4px;justify-content:flex-start;gap:8px}
-  #devTable td[data-label]::before{
-    content:attr(data-label);
-    font-size:11px;font-weight:600;color:var(--muted);
-    text-transform:uppercase;letter-spacing:.04em;
-    min-width:56px;flex-shrink:0;
-  }
-
-  /* 9. STAFF (employee) table → stacked card rows */
-  #empTable thead{display:none}
-  #empTable tbody tr{
-    display:flex;flex-direction:column;
-    padding:14px 16px 12px;
-    border-bottom:1px solid var(--line);
-    gap:5px;
-  }
-  #empTable td{display:flex;align-items:center;justify-content:space-between;padding:0;border:none;font-size:13px;line-height:1.4}
-  #empTable td:first-child{font-size:16px;font-weight:700;color:var(--ink)}
-  #empTable td:last-child{margin-top:6px;justify-content:flex-end;gap:8px;flex-wrap:wrap}
-  #empTable td[data-label]::before{
-    content:attr(data-label);
-    font-size:11px;font-weight:600;color:var(--muted);
-    text-transform:uppercase;letter-spacing:.04em;
-    min-width:60px;flex-shrink:0;
+  #devTable thead th:first-child,
+  #empTable thead th:first-child,
+  #repTable thead th:first-child,
+  .live-table thead th:first-child,
+  #userTable thead th:first-child {
+    background: var(--surface-2); z-index: 3;
   }
 
   /* 10. Staff add form — stack all fields vertically */
@@ -475,32 +460,11 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
     background:var(--surface-2);z-index:3;
   }
 
-  /* 12. Live activity & Reports: Mobile card rows */
-  .live-table thead, #repTable thead {display:none}
-  .live-table tbody tr, #repTable tbody tr {
-    display:flex;flex-direction:column;
-    padding:14px 16px;
-    border-bottom:1px solid var(--line);
-    gap:8px;
-  }
-  .live-table td, #repTable td {display:flex;align-items:center;justify-content:space-between;padding:0;border:none;font-size:14px;}
-  .live-table td:first-child, #repTable td:first-child {align-items:flex-start;}
-  
-  /* Live specifics */
-  .live-table td.live-in-time::before {
-    content:"Punch Time"; font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;
-  }
-  .live-avatar{width:44px;height:44px;font-size:14px}
-  .live-name{font-size:16px}
-  
-  /* Report specifics */
-  #repTable td[data-label]::before{
-    content:attr(data-label);
-    font-size:11px;font-weight:600;color:var(--muted);
-    text-transform:uppercase;letter-spacing:.04em;
-    min-width:60px;flex-shrink:0;
-  }
-  #repTable td:first-child{font-size:16px;font-weight:700;color:var(--ink)}
+  /* 12. Live activity specific tweaks */
+  .live-avatar{width:36px;height:36px;font-size:13px}
+  .live-name{font-size:14px}
+  .live-staff-cell {gap: 10px;}
+  .live-in-time {font-size: 14px !important;}
 
   /* 13. Buttons: full-width where they are the only action */
   .btn{padding:10px 14px;font-size:13.5px}
