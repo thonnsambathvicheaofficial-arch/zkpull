@@ -93,7 +93,7 @@ async function pinsInGroup(group) {
 // regardless of the filter.
 function filterEmployees(all, q, allowed) {
   let out = all
-  if (q.pin) out = Object.fromEntries(Object.entries(out).filter(([pin]) => pin === String(q.pin)))
+  if (q.pin && String(q.pin).toLowerCase() !== 'all') out = Object.fromEntries(Object.entries(out).filter(([pin]) => pin === String(q.pin)))
   if (allowed) out = Object.fromEntries(Object.entries(out).filter(([pin]) => allowed.has(pin)))
   return out
 }
