@@ -104,14 +104,16 @@
         </div>
       </div>
       <div class="card" style="padding:0;">
-        <table id="liveTable" class="live-table" style="width:100%; border-collapse: collapse;">
-          <thead>
-            <!-- Headers injected dynamically in JS -->
-          </thead>
-          <tbody>
-            <!-- Live rows go here -->
-          </tbody>
-        </table>
+        <div class="tablewrap">
+          <table id="liveTable" class="live-table">
+            <thead>
+              <!-- Headers injected dynamically in JS -->
+            </thead>
+            <tbody>
+              <!-- Live rows go here -->
+            </tbody>
+          </table>
+        </div>
         <div id="liveEmpty" style="padding: 2rem; text-align: center; color: var(--text-light); display: none;">No activity today.</div>
       </div>
     </section>
