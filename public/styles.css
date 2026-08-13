@@ -644,3 +644,19 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
 }
 .btn.danger:hover:not(:disabled){background:var(--crest-red-dark);}
 .btn.danger:disabled{opacity:.4;cursor:not-allowed;}
+
+/* -- Mobile Responsiveness ------------------------------- */
+@media (max-width: 768px) {
+  /* Timesheet: Un-stick the right-hand totals columns to free up space for day scrolling */
+  .ts td.tot, .ts th.tot { position: static !important; min-width: auto; width: auto; box-shadow: none !important; }
+  .ts .tot-hrs { border-left: 1px solid var(--line-soft) !important; }
+  .ts .name { min-width: 130px; font-size: 11px; }
+
+  /* Live Activity: Make staff column more compact */
+  .live-table td { padding: 0.75rem 0.5rem; }
+  .live-staff-cell { gap: 0.5rem; }
+  .live-avatar { width: 36px; height: 36px; font-size: 13px; }
+  .live-name { font-size: 13px; }
+  .live-meta { font-size: 0.7rem; flex-wrap: wrap; gap: 0.25rem; }
+  .live-in-time { padding: 0.75rem 0.5rem !important; font-size: 13px; }
+}
