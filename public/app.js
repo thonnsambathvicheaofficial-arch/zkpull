@@ -456,6 +456,12 @@ async function runReport() {
       if (c[0] === 'status') return `<td><span class="chip status-${esc(v)}">${esc(STATUS_LABEL[v] || v || '')}</span></td>`
       if (c[0] === 'note') return `<td class="note-text">${esc(v || '')}</td>`
       if (c[0] === 'minutesLate' || c[0] === 'minLate') return `<td class="num">${v ? esc(v) : ''}</td>`
+      if (c[0] === 'out' && v && row.outDayOffset > 0) {
+        const n = row.outDayOffset
+        const suffix = n >= 2 ? `*+${n} days` : '*next day'
+        const title = n >= 2 ? `Punched out ${n} days later — multi-day trip` : 'Punched out the next morning — overnight shift'
+        return `<td>${esc(to12h(v))} <span class="nextday-label" title="${title}">${suffix}</span></td>`
+      }
       if (c[0] === 'in' || c[0] === 'out' || c[0] === 'time' || c[0].startsWith('_punch')) return `<td>${esc(to12h(v))}</td>`
       const num = NUM_COLS.includes(c[0])
       return `<td class="${num ? 'num' : ''}">${esc(v ?? '')}</td>`
