@@ -237,6 +237,12 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .ts-stat.early b{color:#7c3aed}
 .ts-stat.bad b{color:var(--bad)}
 
+/* ΓöÇΓöÇ specific overrides ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
+.staff-filter-group { max-width: 150px; }
+.staff-search { max-width: 200px; }
+.staff-add-form { align-items: flex-end; }
+.staff-pin-input { max-width: 100px; }
+
 /* ΓöÇΓöÇ chips & inline state ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 .chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.02em;border:1px solid transparent}
 .chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.9}
@@ -415,7 +421,7 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
 
   /* 8. Sticky First Column for ALL Tables on Mobile */
   /* Ensures we can scroll horizontally through dense data without losing track of row context (Name/PIN) */
-  #devTable, #empTable, #repTable, .live-table, #userTable { min-width: 600px; }
+  #devTable, #empTable, #repTable, .live-table, #userTable { width: max-content; min-width: 100%; }
   
   #devTable th:first-child, #devTable td:first-child,
   #empTable th:first-child, #empTable td:first-child,
@@ -435,20 +441,28 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
   }
 
   /* 10. Staff add form — stack all fields vertically */
-  #tab-employees .card .actions{
-    flex-direction:column;align-items:stretch;gap:10px;
+  .staff-add-form{
+    flex-direction:column !important;
+    align-items:stretch !important;
+    gap:10px;
   }
+  .staff-add-form label { width: 100%; }
+  .staff-add-form input, .staff-add-form select,
+  .staff-filter-group, .staff-search, .staff-pin-input {
+    max-width: none !important; width: 100%;
+  }
+  
   #tab-employees .card label{
     display:flex;flex-direction:column;gap:4px;
     font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;
   }
   #tab-employees .card input,
-  #tab-employees .card select{width:100%;max-width:none !important;font-size:15px;padding:10px 12px}
+  #tab-employees .card select{width:100%;font-size:15px;padding:10px 12px}
   #tab-employees .card .offdays{justify-content:flex-start}
   #saveEmp{width:100%;justify-content:center;padding:12px}
 
   /* 11. TIMESHEET table — sticky first column, horizontal scroll */
-  #tsTable{min-width:600px}
+  #tsTable{width:max-content;min-width:100%;}
   #tsTable th:first-child,
   #tsTable td:first-child{
     position:sticky;left:0;z-index:2;

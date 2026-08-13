@@ -214,18 +214,18 @@
         <h2>Staff</h2>
         <div class="actions">
           <button id="suggestStaff" class="btn">Suggest from Devices</button>
-          <select id="e-groupFilter" style="max-width:150px">
+          <select id="e-groupFilter" class="staff-filter-group">
             <option value="">All groups</option>
             <option value="office">Office Staff</option>
             <option value="worker">Worker</option>
           </select>
-          <input id="e-search" placeholder="Search name or PIN…" style="max-width:200px" />
+          <input id="e-search" class="staff-search" placeholder="Search name or PIN…" />
         </div>
       </div>
       <p class="hint">Map each device PIN to a person, put them in a group, and set their own Time In / Time Out. Late is judged against each person’s Time In (or the default Work start in Settings when left blank) — the same rule applies no matter which device they punch on. Off Days is their normal weekly schedule (default Sun+Sat); one-off exceptions (an extra day off, working through leave, an excused no-scan) are set per-day from the Timesheet instead.</p>
       <div class="card">
-        <div class="actions" style="align-items:flex-end">
-          <label>PIN<input id="e-pin" placeholder="PIN" style="max-width:100px" /></label>
+        <div class="actions staff-add-form">
+          <label>PIN<input id="e-pin" class="staff-pin-input" placeholder="PIN" /></label>
           <label>Full name<input id="e-name" placeholder="Full name" /></label>
           <label>Group
             <select id="e-group">
