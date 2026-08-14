@@ -134,15 +134,11 @@ function renderLive() {
 
   const maxP = rows.reduce((m, r) => Math.max(m, r.allTimes.length), 1)
 
-  // Build the dynamic header
-  let headHTML = `
-    <tr style="border-bottom: 1px solid var(--border); text-align: left;">
-      <th style="padding: 1rem; color: var(--text-light); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Staff</th>
-  `
-  for (let i = 0; i < maxP; i++) {
-    headHTML += `<th style="padding: 1rem; color: var(--primary); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; text-align: right; white-space: nowrap;">Punch ${i + 1}</th>`
-  }
-  headHTML += `</tr>`
+  // Build the dynamic header — reuses the shared table header styling (thead th)
+  // so it matches every other table; punch columns are right-aligned like numbers.
+  let headHTML = '<tr><th>Staff</th>'
+  for (let i = 0; i < maxP; i++) headHTML += `<th class="live-punch-head">Punch ${i + 1}</th>`
+  headHTML += '</tr>'
   thead.innerHTML = headHTML
 
   const initials = name => (name || '?').split(' ').map(s => s[0]).join('').substring(0, 2).toUpperCase()
@@ -160,8 +156,7 @@ function renderLive() {
     const times = r.allTimes.slice().sort()
     let punchCells = ''
     for (let i = 0; i < maxP; i++) {
-      const isPresent = !!times[i]
-      punchCells += `<td class="live-in-time" style="line-height: 1.6; text-align: right; font-weight: 600; color: var(--primary); white-space: nowrap; padding: 1rem;">${formatTime(times[i])}</td>`
+      punchCells += `<td class="live-in-time">${formatTime(times[i])}</td>`
     }
 
     return `
@@ -173,8 +168,8 @@ function renderLive() {
             <span class="live-name">${esc(r.name || 'Unknown')}</span>
             <span class="live-meta">
               <span>${esc(r.pin)}</span>
-              ${r.group ? `<span>&middot;</span><span style="display:flex;align-items:center;gap:0.25rem;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>${esc(r.group)}</span>` : ''}
-              <span>&middot;</span><span style="opacity:0.65;">${r.allTimes.length} punch${r.allTimes.length !== 1 ? 'es' : ''}</span>
+              ${r.group ? `<span>&middot;</span><span class="live-group-tag"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>${esc(r.group)}</span>` : ''}
+              <span>&middot;</span><span class="live-punch-count">${r.allTimes.length} punch${r.allTimes.length !== 1 ? 'es' : ''}</span>
             </span>
           </div>
         </div>

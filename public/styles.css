@@ -62,6 +62,7 @@ h2{font-size:19px;font-weight:700;color:var(--ink);text-wrap:balance}
   padding:8px 13px;border-radius:11px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;
   display:inline-flex;align-items:center;gap:7px;transition:background .15s,border-color .15s}
 .logout:hover{background:rgba(255,255,255,.16);color:#fff}
+.logout-icon{flex:none}
 .logout #who:not(:empty)::after{content:"\00B7";margin-left:7px;color:#5b6c92}
 .theme-toggle{
   border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#cdd8f0;
@@ -88,7 +89,7 @@ h2{font-size:19px;font-weight:700;color:var(--ink);text-wrap:balance}
 .tabs button.active::after{display:none;}
 .tabs button:focus-visible{outline:2px solid var(--brand);outline-offset:-4px;border-radius:6px}
 
-main{max-width:1120px;margin:0 auto;padding:26px 18px 72px;animation:rise .28s ease}
+main{max-width:1240px;margin:0 auto;padding:26px 18px 72px;animation:rise .28s ease}
 @keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 .tab{display:none}.tab.active{display:block}
 .row-between{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
@@ -145,11 +146,11 @@ input:disabled{background:var(--surface-3);color:var(--muted);cursor:not-allowed
 .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow-sm)}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead th{
-  background:var(--surface-2);text-align:left;padding:11px 14px;font-weight:700;color:var(--muted);
+  background:var(--surface-2);text-align:left;padding:11px 11px;font-weight:700;color:var(--muted);
   white-space:nowrap;border-bottom:1px solid var(--line);font-size:11px;letter-spacing:.05em;text-transform:uppercase;
   position:sticky;top:0;
 }
-tbody td{padding:11px 14px;border-bottom:1px solid var(--line-soft);white-space:nowrap;color:var(--ink-soft)}
+tbody td{padding:11px 11px;border-bottom:1px solid var(--line-soft);white-space:nowrap;color:var(--ink-soft)}
 tbody td b{color:var(--ink);font-weight:650}
 tbody tr:last-child td{border-bottom:0}
 tbody tr:hover{background:var(--surface-2);transform:scale(1.002);box-shadow:inset 3px 0 0 0 var(--brand-lighter);}
@@ -336,17 +337,18 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
   /* Global: ensure [hidden] is truly hidden even inside flex nav */
   [hidden]{display:none !important}
 
-  /* 1. Header compact — single-line, no subtitle/stats */
-  .topbar{padding:10px 16px;flex-wrap:nowrap;gap:10px}
+  /* 1. Header compact — single-line title, icon-only action buttons */
+  .topbar{padding:10px 14px;flex-wrap:nowrap;gap:10px}
   .topbar p{display:none}
-  .topbar h1{font-size:16px;letter-spacing:-.02em}
+  .brand{gap:10px;flex:1;min-width:0}
+  .brand > div{min-width:0}
+  .topbar h1{font-size:16px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .logo{width:36px;height:36px;border-radius:9px;padding:3px}
-  .brand{gap:10px}
   .stats{display:none}
-  .logout{padding:7px 11px;font-size:12px;gap:0;border-radius:9px}
-  .logout #who{display:none}
-  /* Show just "Log out" text */
-  .logout::before{content:"↩";font-size:14px}
+  .topright{gap:8px;flex:none}
+  /* Theme toggle + Log out collapse to equal square icon buttons */
+  .logout{padding:8px;border-radius:10px;gap:0}
+  .logout #who,.logout .logout-text{display:none}
 
   /* 2. Bottom navigation bar — fixed, icon + label, full width */
   .tabs{
@@ -407,20 +409,27 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
   /* 6. Table wrapper: full-bleed, horizontal scroll for data tables */
   .tablewrap{border-radius:0;border-left:none;border-right:none;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0}
 
-  /* 7. Filters: full-width stacked column layout on mobile, but keep Actions pinned */
+  /* 7. Filters: tidy 2-column form on mobile. Inputs fill their cell; the action
+     buttons sit on their own full-width row (Run prominent, others share a row
+     beneath) — no sticky/overlap, no horizontal scrolling of the filter bar. */
   .filters{
-    display:flex;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
-    gap:10px;padding:14px 16px;
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;
+    gap:12px;padding:14px 16px;
     border-radius:0;border-left:none;border-right:none;
-    -webkit-overflow-scrolling:touch;
   }
-  .filters::-webkit-scrollbar{display:none}
-  .filters label{flex:0 0 auto;display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-  .filters label select,.filters label input{font-size:14px;padding:8px 10px;min-width:140px;}
-  .filters .actions{position:sticky;right:0;background:var(--surface);padding-left:8px;display:flex;gap:8px;box-shadow:-8px 0 12px var(--surface);}
-  .filters .actions .btn{padding:9px 12px;font-size:14px;white-space:nowrap;}
+  .filters > label,.filters > .actions{min-width:0}
+  .filters label{
+    display:flex;flex-direction:column;gap:5px;
+    font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;
+  }
+  .filters label select,.filters label input{width:100%;min-width:0;font-size:15px;padding:10px 12px;}
+  .filters .actions{
+    grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px;margin-top:2px;
+  }
+  .filters .actions .btn{flex:1 1 auto;justify-content:center;padding:11px 14px;font-size:14px;white-space:nowrap;}
+  .filters .actions .btn.primary{flex-basis:100%;order:-1;}
   .month-nav{display:flex;align-items:center;gap:6px}
-  .month-nav input{min-width:120px;}
+  .month-nav input{flex:1;min-width:0;}
 
   /* 8. Sticky First Column for ALL Tables on Mobile */
   /* Ensures we can scroll horizontally through dense data without losing track of row context (Name/PIN) */
@@ -495,6 +504,13 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
     padding:24px 20px 32px;
     animation:slide-up .25s cubic-bezier(.32,.72,0,1);
   }
+  /* Any .modal-box (e.g. the Wipe dialog) also becomes a bottom sheet. The
+     descendant selector outweighs the base .wipe-modal-box max-width so it wins. */
+  .modal-overlay .modal-box{
+    border-radius:20px 20px 0 0;
+    max-width:100%;width:100%;
+    animation:slide-up .25s cubic-bezier(.32,.72,0,1);
+  }
   @keyframes slide-up{from{transform:translateY(100%)}to{transform:none}}
 
   /* 15. Timesheet stat cards horizontal scroll */
@@ -565,8 +581,18 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
 }
 .live-staff-details{display:flex;flex-direction:column;gap:.2rem}
 .live-name{font-weight:600;color:var(--ink)}
-.live-meta{font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:.5rem}
-.live-in-time{text-align:right;font-weight:700;color:var(--brand);font-size:15px}
+.live-meta{font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.live-group-tag{display:inline-flex;align-items:center;gap:4px}
+.live-punch-count{opacity:.65}
+/* Even column distribution (desktop): Staff takes a set share, punch columns
+   split the remaining width evenly, so the table fills the card without a gap in
+   the middle or a dead zone on the right. Times align to the start of each column. */
+.live-table{table-layout:fixed}
+.live-table th:first-child,.live-table td:first-child{width:38%}
+.live-in-time{text-align:left;font-weight:700;color:var(--brand);font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.live-table thead th.live-punch-head{color:var(--brand)}
+.live-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.live-staff-details{min-width:0}
 
 /* ── Wipe confirmation modal ─────────────────────────────── */
 .wipe-modal-box{
@@ -650,13 +676,28 @@ code{background:var(--surface-3);padding:2px 7px;border-radius:6px;font-size:12p
   /* Timesheet: Un-stick the right-hand totals columns to free up space for day scrolling */
   .ts td.tot, .ts th.tot { position: static !important; min-width: auto; width: auto; box-shadow: none !important; }
   .ts .tot-hrs { border-left: 1px solid var(--line-soft) !important; }
-  .ts .name { min-width: 130px; font-size: 11px; }
+  /* Sticky Employee column: fixed width, content stacks/wraps INSIDE it so the
+     name + group chip + PIN never spill over and overlap the day columns. */
+  .ts .name {
+    width: 140px; min-width: 140px; max-width: 140px;
+    font-size: 11px; white-space: normal; vertical-align: middle; line-height: 1.35;
+  }
+  .ts td.name b {
+    display: block; max-width: 100%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 2px;
+  }
+  .ts td.name .mono { font-size: 10px; }
+  .ts td.name .chip { padding: 1px 7px; font-size: 10px; }
 
-  /* Live Activity: Make staff column more compact */
+  /* Live Activity: compact; natural column widths (fixed layout is desktop-only,
+     the table scrolls horizontally here instead). */
+  .live-table { table-layout: auto; }
+  .live-table th:first-child, .live-table td:first-child { width: auto; }
   .live-table td { padding: 0.75rem 0.5rem; }
   .live-staff-cell { gap: 0.5rem; }
   .live-avatar { width: 36px; height: 36px; font-size: 13px; }
-  .live-name { font-size: 13px; }
+  .live-name { font-size: 13px; white-space: nowrap; }
   .live-meta { font-size: 0.7rem; flex-wrap: wrap; gap: 0.25rem; }
   .live-in-time { padding: 0.75rem 0.5rem !important; font-size: 13px; }
 }
