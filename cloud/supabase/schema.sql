@@ -71,13 +71,18 @@ create index if not exists punches_pin_idx on punches (pin);
 
 -- Quarantined punches. A device with a corrupted RTC (dead battery, or a
 -- restart after a power cut) can hand back timestamps decades off — the Aug 21
--- 2026 incident produced year-2119 dates on one device. lib/zkpull.js checks
--- every record's date against a sane window before insert; anything outside it
--- lands HERE instead of `punches`, so a broken clock can never silently distort
--- attendance reports. The puller's write here is best-effort (wrapped in a
--- try/catch) — without this table those records were only ever visible in the
--- puller's console logs. No UI reads this table yet; it exists so a device's
--- bad clock is reviewable/auditable instead of just discarded.
+-- 2026 incident produced year-2119 dates on one device. Separately, B3-C
+-- injects a phantom record for a recurring group of PINs in the first couple
+-- minutes after local midnight (see MIDNIGHT_ARTIFACT_* in lib/zkpull.js).
+-- lib/zkpull.js checks every record against both signatures before insert;
+-- anything flagged lands HERE instead of `punches`, so neither issue can
+-- silently distort attendance reports. The puller's write here is best-effort
+-- (wrapped in a try/catch) — without this table those records were only ever
+-- visible in the puller's console logs. `reason` distinguishes the two
+-- failure modes for whoever's reviewing this table later. No UI reads this
+-- table yet (beyond the Devices page's count/last-seen chip); it exists so a
+-- device's bad clock or phantom-scan bug is reviewable/auditable instead of
+-- just discarded.
 create table if not exists corrupted_punches (
   id          uuid primary key default gen_random_uuid(),
   device_id   uuid references devices(id) on delete set null,
@@ -88,8 +93,10 @@ create table if not exists corrupted_punches (
   verify      integer default 0,
   status      integer default 0,
   source      text,
-  detected_at timestamptz not null default now()
+  detected_at timestamptz not null default now(),
+  reason      text           -- 'out_of_range_timestamp' | 'midnight_artifact' | null (rows quarantined before this column existed)
 );
+alter table corrupted_punches add column if not exists reason text;
 -- Same dedup key as `punches` (pin, ts) — matches the onConflict target
 -- lib/zkpull.js upserts with (ignoreDuplicates: true), so re-pulling a device
 -- that's still broken doesn't pile up duplicate quarantine rows every cron run.
