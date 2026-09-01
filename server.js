@@ -10,7 +10,7 @@ const path = require('path')
 const store = require('./lib/store')
 const { dailyRows, summaryRows, timesheet, aliasToPrimary } = require('./lib/attendance')
 const { toXlsx } = require('./lib/excel')
-const { to12h } = require('./lib/time')
+const { to12h, dayName } = require('./lib/time')
 const auth = require('./lib/auth')
 
 const app = express()
@@ -146,8 +146,8 @@ app.get('/api/status', h(async (req, res) => {
 // ── API: devices ────────────────────────────────────────────
 // Editable here. Uses the Supabase `devices` table.
 app.get('/api/devices', h(async (req, res) => {
-  const [devices, counts] = await Promise.all([store.devices.list(), store.punches.countsByDevice()])
-  res.json(devices.map(d => ({ ...d, punches: counts[d.id] || 0 })))
+  const [devices, counts, corrupted] = await Promise.all([store.devices.list(), store.punches.countsByDevice(), store.punches.corruptedCountsByDevice()])
+  res.json(devices.map(d => ({ ...d, punches: counts[d.id] || 0, corrupted: corrupted[d.id]?.n || 0, corruptedAt: corrupted[d.id]?.lastDetectedAt || null })))
 }))
 
 app.post('/api/devices', h(async (req, res) => {
@@ -344,16 +344,16 @@ app.get('/api/export/:kind', h(async (req, res) => {
       const maxP = daily.reduce((m, r) => Math.max(m, (r.allPunches || []).length), 0)
       const punchHeaders = Array.from({ length: maxP }, (_, i) => `Punch ${i + 1}`)
       sheet = { name: 'Daily',
-        header: ['Date', 'PIN', 'Name', 'Group', 'Status', 'In', 'Out', ...punchHeaders, 'Hours', 'Punches', 'Late', 'Min Late', 'Early Leave', 'Note'],
+        header: ['Day', 'Date', 'PIN', 'Name', 'Group', 'Status', 'In', 'Out', ...punchHeaders, 'Hours', 'Punches', 'Late', 'Min Late', 'Early Leave', 'Note'],
         rows: daily.map(r => {
           const punchCells = Array.from({ length: maxP }, (_, i) => to12h((r.allPunches || [])[i] || ''))
-          return [r.date, r.pin, r.name, glabel(r.group), slabel(r.status), to12h(r.in), to12h(r.out), ...punchCells, r.hours, r.punches, r.status === 'late' ? 'LATE' : '', r.minutesLate ? r.minutesLate : '', r.earlyLeave ? 'EARLY' : '', r.note || '']
+          return [dayName(r.date), r.date, r.pin, r.name, glabel(r.group), slabel(r.status), to12h(r.in), to12h(r.out), ...punchCells, r.hours, r.punches, r.status === 'late' ? 'LATE' : '', r.minutesLate ? r.minutesLate : '', r.earlyLeave ? 'EARLY' : '', r.note || '']
         }),
-        cols: [12, 12, 24, 12, 10, 8, 8, ...Array(maxP).fill(9), 8, 9, 7, 8, 11, 30] }
+        cols: [11, 12, 12, 24, 12, 10, 8, 8, ...Array(maxP).fill(9), 8, 9, 7, 8, 11, 30] }
     } else {
-      sheet = { name: 'Daily', header: ['Date', 'PIN', 'Name', 'Group', 'Status', 'In', 'Out', 'Hours', 'Punches', 'Late', 'Min Late', 'Early Leave', 'Note'],
-        rows: daily.map(r => [r.date, r.pin, r.name, glabel(r.group), slabel(r.status), to12h(r.in), to12h(r.out), r.hours, r.punches, r.status === 'late' ? 'LATE' : '', r.minutesLate ? r.minutesLate : '', r.earlyLeave ? 'EARLY' : '', r.note || '']),
-        cols: [12, 12, 24, 12, 10, 8, 8, 8, 9, 7, 8, 11, 30] }
+      sheet = { name: 'Daily', header: ['Day', 'Date', 'PIN', 'Name', 'Group', 'Status', 'In', 'Out', 'Hours', 'Punches', 'Late', 'Min Late', 'Early Leave', 'Note'],
+        rows: daily.map(r => [dayName(r.date), r.date, r.pin, r.name, glabel(r.group), slabel(r.status), to12h(r.in), to12h(r.out), r.hours, r.punches, r.status === 'late' ? 'LATE' : '', r.minutesLate ? r.minutesLate : '', r.earlyLeave ? 'EARLY' : '', r.note || '']),
+        cols: [11, 12, 12, 24, 12, 10, 8, 8, 8, 9, 7, 8, 11, 30] }
     }
   }
   sendXlsx(res, `Attendance_${req.params.kind}${suffix}_${stamp}.xlsx`, toXlsx([sheet]))

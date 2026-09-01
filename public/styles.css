@@ -251,6 +251,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .chip.adms{background:#e7ebff;color:#4338ca;border-color:#d4dbff}
 .chip.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line)}
 .chip.bad{background:var(--bad-bg);color:var(--bad);border-color:var(--bad-line)}
+.corrupted-chip{margin-left:6px;cursor:help}
 .chip.late{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line)}
 .chip.early{background:var(--purple-bg);color:#7c3aed;border-color:#e3d3ff}
 .chip.nextday{background:#eef2ff;color:#4338ca;border-color:#c7d2fe;padding:1px 7px;font-size:10px}

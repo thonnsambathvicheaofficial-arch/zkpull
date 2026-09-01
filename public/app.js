@@ -19,6 +19,17 @@ function to12h(t) {
   return `${h}:${p.slice(1).join(':')} ${ap}`
 }
 
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+// "YYYY-MM-DD" -> weekday name. Builds the Date from local Y/M/D components
+// (not the string-parsing constructor, which treats "YYYY-MM-DD" as UTC
+// midnight and can shift the weekday depending on the browser's timezone) —
+// this is a pure calendar fact, so no timezone conversion should touch it.
+function dayName(dateStr) {
+  if (!dateStr) return ''
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return WEEKDAY_NAMES[new Date(y, m - 1, d).getDay()]
+}
+
 // ── tabs ────────────────────────────────────────────────────
 $('#tabs').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return
@@ -238,8 +249,11 @@ async function loadDevices() {
   if (!list.length) { tb.innerHTML = '<tr><td colspan="7"><div class="empty">No devices yet. Add one and configure its public host for background syncing.</div></td></tr>'; return }
   tb.innerHTML = list.map(d => {
     const canPull = d.type === 'pull' && d.publicHost
+    const corruptedChip = d.corrupted
+      ? ` <span class="chip bad corrupted-chip" title="Device clock produced ${d.corrupted} timestamp(s) outside the sane range — likely a dead RTC battery or a restart after a power cut. Records were quarantined, not lost. Last detected ${esc(agoText(d.corruptedAt) || 'recently')}.">⚠ ${d.corrupted} corrupted</span>`
+      : ''
     return `<tr data-device-id="${d.id}">
-      <td><b>${esc(d.name)}</b></td>
+      <td><b>${esc(d.name)}</b>${corruptedChip}</td>
       <td><span class="chip ${d.type === 'pull' ? 'pull' : d.type === 'adms' ? 'adms' : 'import'}">${d.type === 'pull' ? 'TCP Pull' : d.type === 'adms' ? 'ADMS' : 'Imported'}</span></td>
       <td class="mono">${d.ip ? esc(d.ip) + ':' + d.port : '—'}</td>
       <td class="mono">${esc(d.serial || '—')}</td>
@@ -383,7 +397,7 @@ $('#saveDevice').addEventListener('click', async () => {
 
 // ── reports ─────────────────────────────────────────────────
 const COLS = {
-  daily:   [['date', 'Date'], ['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['status', 'Status'], ['in', 'In'], ['out', 'Out'], ['hours', 'Hours'], ['punches', 'Punches'], ['minutesLate', 'Min Late'], ['earlyLeave', 'Early Leave'], ['note', 'Note']],
+  daily:   [['day', 'Day'], ['date', 'Date'], ['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['status', 'Status'], ['in', 'In'], ['out', 'Out'], ['hours', 'Hours'], ['punches', 'Punches'], ['minutesLate', 'Min Late'], ['earlyLeave', 'Early Leave'], ['note', 'Note']],
   summary: [['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['days', 'Days'], ['hours', 'Total Hours'], ['late', 'Late'], ['minLate', 'Min Late'], ['early', 'Early Leave'], ['absent', 'Absent'], ['dayOff', 'Day Off'], ['leave', 'Leave'], ['excused', 'Excused']],
   punches: [['date', 'Date'], ['time', 'Time'], ['pin', 'PIN'], ['name', 'Name'], ['group', 'Group'], ['source', 'Source'], ['verify', 'Verify']],
 }
@@ -446,6 +460,7 @@ async function runReport() {
     }
     return '<tr>' + cols.map(c => {
       let v = row[c[0]]
+      if (c[0] === 'day') return `<td>${esc(dayName(row.date))}</td>`
       if (c[0] === 'earlyLeave') return `<td class="num">${v ? '<span class="chip early">EARLY</span>' : ''}</td>`
       if (c[0] === 'group') return `<td>${groupChip(v)}</td>`
       if (c[0] === 'status') return `<td><span class="chip status-${esc(v)}">${esc(STATUS_LABEL[v] || v || '')}</span></td>`

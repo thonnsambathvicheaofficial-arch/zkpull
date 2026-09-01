@@ -69,11 +69,45 @@ create unique index if not exists punches_dedup on punches (pin, ts);
 create index if not exists punches_ts_idx  on punches (ts);
 create index if not exists punches_pin_idx on punches (pin);
 
+-- Quarantined punches. A device with a corrupted RTC (dead battery, or a
+-- restart after a power cut) can hand back timestamps decades off — the Aug 21
+-- 2026 incident produced year-2119 dates on one device. lib/zkpull.js checks
+-- every record's date against a sane window before insert; anything outside it
+-- lands HERE instead of `punches`, so a broken clock can never silently distort
+-- attendance reports. The puller's write here is best-effort (wrapped in a
+-- try/catch) — without this table those records were only ever visible in the
+-- puller's console logs. No UI reads this table yet; it exists so a device's
+-- bad clock is reviewable/auditable instead of just discarded.
+create table if not exists corrupted_punches (
+  id          uuid primary key default gen_random_uuid(),
+  device_id   uuid references devices(id) on delete set null,
+  device_name text,           -- denormalized so the row stays readable even if the device is later renamed/deleted
+  serial      text,
+  pin         text not null,
+  ts          timestamp not null,   -- the corrupted wall-clock value as read off the device
+  verify      integer default 0,
+  status      integer default 0,
+  source      text,
+  detected_at timestamptz not null default now()
+);
+-- Same dedup key as `punches` (pin, ts) — matches the onConflict target
+-- lib/zkpull.js upserts with (ignoreDuplicates: true), so re-pulling a device
+-- that's still broken doesn't pile up duplicate quarantine rows every cron run.
+create unique index if not exists corrupted_punches_dedup on corrupted_punches (pin, ts);
+create index if not exists corrupted_punches_detected_idx on corrupted_punches (detected_at);
+
 -- Punch count per device — a real GROUP BY aggregate computed in Postgres, so
 -- the Devices page doesn't have to page through every punch row (64k+) client
 -- side just to show a count next to each device.
 create or replace view device_punch_counts as
   select device_id, count(*) as n from punches where device_id is not null group by device_id;
+
+-- Quarantined-punch count per device, plus the most recent detection — powers
+-- the Devices page warning chip that surfaces a broken device clock (see
+-- corrupted_punches above) instead of leaving it as a write-only table.
+create or replace view device_corrupted_counts as
+  select device_id, count(*) as n, max(detected_at) as last_detected_at
+  from corrupted_punches where device_id is not null group by device_id;
 
 -- Per-PIN activity summary (one row per PIN) — powers the "suggest staff from
 -- devices" review tool. Aggregating in Postgres keeps that endpoint to a single
@@ -135,9 +169,10 @@ insert into settings (id) values (1) on conflict (id) do nothing;
 
 -- RLS: lock everything down. The cron puller and the Vercel API use the SERVICE key,
 -- which bypasses RLS anyway. The anon/public key can read or write absolutely nothing.
-alter table devices       enable row level security;
-alter table employees     enable row level security;
-alter table punches       enable row level security;
-alter table login_users   enable row level security;
-alter table settings      enable row level security;
-alter table day_overrides enable row level security;
+alter table devices           enable row level security;
+alter table employees         enable row level security;
+alter table punches           enable row level security;
+alter table corrupted_punches enable row level security;
+alter table login_users       enable row level security;
+alter table settings          enable row level security;
+alter table day_overrides     enable row level security;
