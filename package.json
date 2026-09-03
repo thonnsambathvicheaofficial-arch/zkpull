@@ -5,8 +5,7 @@
   "description": "Attendance reports web app, backed by Supabase. Deployable on Vercel or run locally; punches are collected directly over WAN port-forwarding.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "postinstall": "patch-package"
+    "start": "node server.js"
   },
   "engines": {
     "node": ">=18"
@@ -19,7 +18,5 @@
     "node-zklib": "^1.3.0",
     "xlsx": "^0.18.5"
   },
-  "devDependencies": {
-    "patch-package": "^8.0.1"
-  }
+  "devDependencies": {}
 }
