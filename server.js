@@ -347,12 +347,12 @@ app.get('/api/export/:kind', h(async (req, res) => {
         header: ['Day', 'Date', 'PIN', 'Name', 'Group', 'Status', 'In', 'Out', ...punchHeaders, 'Hours', 'Punches', 'Late', 'Min Late', 'Early Leave', 'Note'],
         rows: daily.map(r => {
           const punchCells = Array.from({ length: maxP }, (_, i) => to12h((r.allPunches || [])[i] || ''))
-          return [dayName(r.date), r.date, r.pin, r.name, glabel(r.group), slabel(r.status), to12h(r.in), to12h(r.out), ...punchCells, r.hours, r.punches, r.status === 'late' ? 'LATE' : '', r.minutesLate ? r.minutesLate : '', r.earlyLeave ? 'EARLY' : '', r.note || '']
+          return [dayName(r.date), r.date, r.pin, r.name, glabel(r.group), slabel(r.status), to12h(r.in), to12h(r.out), ...punchCells, r.hours, r.punches, (r.status === 'late' || r.minutesLate > 0) ? 'LATE' : '', r.minutesLate ? r.minutesLate : '', r.earlyLeave ? 'EARLY' : '', r.note || '']
         }),
         cols: [11, 12, 12, 24, 12, 10, 8, 8, ...Array(maxP).fill(9), 8, 9, 7, 8, 11, 30] }
     } else {
       sheet = { name: 'Daily', header: ['Day', 'Date', 'PIN', 'Name', 'Group', 'Status', 'In', 'Out', 'Hours', 'Punches', 'Late', 'Min Late', 'Early Leave', 'Note'],
-        rows: daily.map(r => [dayName(r.date), r.date, r.pin, r.name, glabel(r.group), slabel(r.status), to12h(r.in), to12h(r.out), r.hours, r.punches, r.status === 'late' ? 'LATE' : '', r.minutesLate ? r.minutesLate : '', r.earlyLeave ? 'EARLY' : '', r.note || '']),
+        rows: daily.map(r => [dayName(r.date), r.date, r.pin, r.name, glabel(r.group), slabel(r.status), to12h(r.in), to12h(r.out), r.hours, r.punches, (r.status === 'late' || r.minutesLate > 0) ? 'LATE' : '', r.minutesLate ? r.minutesLate : '', r.earlyLeave ? 'EARLY' : '', r.note || '']),
         cols: [11, 12, 12, 24, 12, 10, 8, 8, 8, 9, 7, 8, 11, 30] }
     }
   }
