@@ -9,6 +9,7 @@ const path = require('path')
 
 const store = require('./lib/store')
 const { dailyRows, summaryRows, timesheet, aliasToPrimary } = require('./lib/attendance')
+const { applyPinRemaps } = require('./lib/pinremap')
 const { toXlsx } = require('./lib/excel')
 const { to12h, dayName } = require('./lib/time')
 const auth = require('./lib/auth')
@@ -100,7 +101,9 @@ function filterEmployees(all, q, allowed) {
 
 // Roll each punch's PIN up to its primary (alias support) so a person enrolled
 // under multiple device PINs resolves to ONE staff record everywhere.
+// Device-scoped remaps (a reader logging one person under two IDs) apply first.
 function canonPunches(punches, employees) {
+  punches = applyPinRemaps(punches)
   const a = aliasToPrimary(employees)
   return Object.keys(a).length ? punches.map(p => (a[p.pin] ? { ...p, pin: a[p.pin] } : p)) : punches
 }
